@@ -1,6 +1,7 @@
 # Import required libraries
 import dash
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from dash import dash_table as dt
 from dash import Dash, dcc, html, dash_table
@@ -194,17 +195,25 @@ def drawDonutChart(data_, id_, title_):
         ])
         ,fig)
 
-def drawRangeSliderWithoutCard(data_, id_):       
-    return(dcc.RangeSlider(0, 24, 0.5,
-        marks = {k: {'label': f'{k}:00',
-                     'style': {'transform':'rotate(45deg)'}} for k in range(0,25)},
-        value=[5, 15], id=id_, allowCross = False))
+def drawRangeSliderWithoutCard(data_, id_, min, max, ds, datatype):      
+    if datatype == 'time':
+        marks_ =  {k: {'label': f'{round(k,0)}:00',
+                     'style': {'transform':'rotate(45deg)'}} for k in np.arange(min,max+1)}
+        value_ = [5,15]
+    elif datatype == 'lf':
+        marks_ =  {k: {'label': f'{round(k, 2)}',
+                     'style': {'transform':'rotate(45deg)'}} for k in np.arange(min,max+1, ds)}
+        value_ = [0.25,1]
+    return(dcc.RangeSlider(min, max, ds,
+    # TODO: add different variable for ds for marks and ds for labels
+        marks = marks_,
+        value=value_, id=id_, allowCross = False))
 
-def drawRangeSlider(data_, id_):
+def drawRangeSlider(data_, id_, min, max, ds, datatype):
     return(html.Div([
         dbc.Card(
             dbc.CardBody([
-                 drawRangeSliderWithoutCard(data_, id_) 
+                 drawRangeSliderWithoutCard(data_, id_, min, max, ds, datatype) 
                 ])
             )
         ])
@@ -213,6 +222,7 @@ def drawRangeSlider(data_, id_):
 # Main website lay-out
 # app.layout = html.Div(style={'width':'80%', 'margin':'auto'}, children=[
 app.layout = html.Div(children=[
+    # Main body of the website, this card holds everything
     dbc.Card(
         dbc.CardBody([
             # Header text
@@ -228,7 +238,7 @@ app.layout = html.Div(children=[
                 dbc.Col([
                     getmap('map', flight_routes)[0]
                 ], width=7),
-                # Filter options
+                # This column/card holds all filter options
                 # dbc.Col([
                 #     dbc.Col([
                 #         html.H6('Flight number'),
@@ -258,13 +268,34 @@ app.layout = html.Div(children=[
                                     ], width=6),
                                 ]),
                             html.Br(),
+                                dbc.Row([
+                                    dbc.Col([
+                                        html.H6('Dangerous goods'),
+                                        drawDropdownWithoutCard(list(df.specials.unique()), 'specials_filter', 'Select an option', '100%'),
+                                    ], width = 6),
+                                    dbc.Col([
+                                        html.H6('Data options'),
+                                        dcc.RadioItems(
+                                            options=['Shipments', 'Flights'],
+                                            value='Shipments',
+                                            inline=True,
+                                                    ),
+                                    ], width = 6),
+                                ]),
+                            html.Br(),
                             html.Br(),
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Departure time from FRA'),
-                                        drawRangeSliderWithoutCard(1, 'i1d2_')
+                                        drawRangeSliderWithoutCard(1, 'i1d2_', 0, 24, 0.5, 'time')
                                         ], width = 12)
-                                    ])
+                                    ]),
+                                dbc.Row([
+                                    dbc.Col([
+                                        html.H6('Load factor'),
+                                        drawRangeSliderWithoutCard(1, 'i1d3_', 0, 1, 0.05, 'lf')
+                                        ], width = 12)
+                                    ]),
                             ])
                         )
                     ])
@@ -296,11 +327,6 @@ app.layout = html.Div(children=[
                     drawDonutChart(df, 'donut_chart2', 'Cargo volume [tonnes]')[0]])
                 ]),
             html.Br(),
-            dbc.Row([
-                dbc.Col([
-                    drawRangeSlider(1, 'i1d_')])
-                #TODO: move range slider to filter card (so without the card)
-                ]),
             # Data table
             dbc.Row([
                 dbc.Col([
@@ -342,7 +368,7 @@ app.layout = html.Div(children=[
     Input('dest_filter', 'value')
     )
 def update_table(flightnr, dest):
-    if all(arg is None or len(arg) == 0 for arg in [flightnr, origin, dest]):
+    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
         data = df2.to_dict('records')
         return data
     else:
@@ -365,18 +391,17 @@ def update_table(flightnr, dest):
     Input('dest_filter', 'value')
     )
 def update_pie_chart(flightnr, dest):
-    if all(arg is None or len(arg) == 0 for arg in [flightnr, origin, dest]):
+    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
         fig = drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
         return fig
     else:
         # filtered_df = df2[df2.flightnr.isin(flightnr)
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-        origin = list(df2['origin'].unique()) if origin in [None, []] else origin
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
         print(f'{flightnr}, {origin}, {dest}')
         # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
         # dest = list(df2['dest'])
-        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.origin.isin(origin) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
+        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
         fig = drawDonutChart(filtered_df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
         return fig
 
@@ -390,14 +415,13 @@ def update_pie_chart(flightnr, dest):
     Input('dest_filter', 'value')
           )
 def update_flight_route(flightnr, dest): 
-    if all(arg is None or len(arg) == 0 for arg in [flightnr, origin, dest]):
+    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
         flight_routes = getFlightRoutes(df)
         return (getmap('map', flight_routes)[1])
     else:
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-        origin = list(df2['origin'].unique()) if origin in [None, []] else origin
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-        filtered_df = df[(df.flightnr.isin(flightnr) & df.origin.isin(origin) & df.dest.isin(dest))]
+        filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest))]
         updated_flight_routes = getFlightRoutes(filtered_df)
         return (getmap('map', updated_flight_routes)[1])
 
@@ -431,6 +455,7 @@ def update_flight_route(flightnr, dest):
 #TODO: Maybe combine the multiple call-backs? On the other hand, this gives more overview, but does have a lot of repeated code
 #TODO: Add an option that toggles between the full dataframe (with individual shipments), and a dataframe that shows the totals per flight (number)
 #TODO: Add options to include lay-overs as well?
+#TODO: Add plot for: departure tiem (bar chart), frequency per day (line chart), load factor (line chart?)
 
 
 
