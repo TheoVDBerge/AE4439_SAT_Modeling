@@ -13,4 +13,7 @@ def getFlightRoutes(df):
 #     # This function gets the unique OD-routes (without the stop-overs)
 #     # This is used for the drop-down menus
 
-
+def getHHMM(time):
+    hours = int(time)
+    minutes = int((time * 60) % 60)
+    return(f'{str(hours).zfill(2)}:{str(minutes).zfill(2)}')

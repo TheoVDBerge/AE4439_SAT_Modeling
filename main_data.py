@@ -25,6 +25,7 @@ def unix2norm(timestamp):
     return(datetime.datetime.fromtimestamp(timestamp))
 
 def processData(data):
+    maxPayloadMD11 = 90_000 # kg
     segments = list(data['segments'])
     legs = list((data['flights'][list(data['flights'].keys())[0]]['legs']).keys())
     time_ = unix2norm(data['flights'][list(data['flights'].keys())[0]]['std_timestamp'])
@@ -34,6 +35,7 @@ def processData(data):
             shipment = data['segments'][j]['shipments'][shipmentnr]['pieces'][f'{shipmentnr}x0']
             flightinfo = segments[idy].split('-')
             testshipments[f'{flightinfo[1]}-{flightinfo[0]}-{idy}-{i}'] = {
+                'uniqueflightid': f'{flightinfo[0]}-{date2date2(time_)}',
                 'shipmentnr': shipmentnr,
                 'flightnr': flightinfo[0],
                 'date': date2date2(time_),
@@ -46,7 +48,8 @@ def processData(data):
                 'totalWeight': shipment['weight'] * shipment['amount'], 
                 'uldtype': None,
                 'uldnr': None,
-                'specials': shipment['specials'] if 'specials' in shipment.keys() else 0,}
+                'specials': shipment['specials'] if 'specials' in shipment.keys() else 0,
+                'lf': (shipment['weight'] * shipment['amount'])/maxPayloadMD11}
     return()
 
 # testdata = {'test':{'value1': 0,
@@ -118,7 +121,6 @@ for i in test2:
 # plt.xticks(rotation=45, ha="right")
 
 # df['std'].value_counts(sort=False).plot.bar()
-
 
 
 #TODO: Think about data I want to plot, what types of charts and UI for filtering

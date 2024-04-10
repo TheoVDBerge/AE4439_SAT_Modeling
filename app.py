@@ -8,11 +8,12 @@ from dash import Dash, dcc, html, dash_table
 from dash.dependencies import Input
 from dash.dependencies import Output
 import dash_bootstrap_components as dbc
+import plotly.express as px
 from main_data import df
 print('Imported main_data.py')
 from airport_data import df_airport
 print('Imported airport data')
-from helper_functions import getFlightRoutes 
+from helper_functions import getFlightRoutes, getHHMM
 print('Imported helper_functions.py')
 #%%
 print('Imported all requirements')
@@ -195,29 +196,65 @@ def drawDonutChart(data_, id_, title_):
         ])
         ,fig)
 
-def drawRangeSliderWithoutCard(data_, id_, min, max, ds, datatype):      
+def drawRangeSliderWithoutCard(data_, id_, min_, max_, ds_label, ds_mark, datatype):
+    marks_ = {}      
     if datatype == 'time':
-        marks_ =  {k: {'label': f'{round(k,0)}:00',
-                     'style': {'transform':'rotate(45deg)'}} for k in np.arange(min,max+1)}
+        marks_ =  {str(round(k, 2)): {'label': f'{round(k, 2)}:00',
+                     'style': {'transform':'rotate(45deg)'}} for k in np.arange(min_,max_+1)}
         value_ = [5,15]
+        
     elif datatype == 'lf':
-        marks_ =  {k: {'label': f'{round(k, 2)}',
-                     'style': {'transform':'rotate(45deg)'}} for k in np.arange(min,max+1, ds)}
-        value_ = [0.25,1]
-    return(dcc.RangeSlider(min, max, ds,
+        marks_ =  {str(round(k, 2)): {'label': "{:.2f}".format(float(round(k, 2))),
+                     'style': {'transform':'rotate(45deg)'}} for k in np.arange(min_, max_ + ds_label, ds_label)}
+        value_ = [0.25, 0.75]
+        
+    return(dcc.RangeSlider(min_, max_, ds_mark,
     # TODO: add different variable for ds for marks and ds for labels
         marks = marks_,
-        value=value_, id=id_, allowCross = False))
+        value = value_,
+        id = id_,
+        allowCross = False
+        ), marks_)
 
-def drawRangeSlider(data_, id_, min, max, ds, datatype):
+def drawRangeSlider(data_, id_, min_, max_, ds, datatype):
     return(html.Div([
         dbc.Card(
             dbc.CardBody([
-                 drawRangeSliderWithoutCard(data_, id_, min, max, ds, datatype) 
+                 drawRangeSliderWithoutCard(data_, id_, min_, max_, ds, datatype) 
                 ])
             )
         ])
         )
+
+def drawBarChart(data_, id_, type_):
+    if type_ == 'frequency':
+        #TODO: Group departures per one hour timeslots
+        data__ = data_.drop_duplicates(subset = ['date', 'flightnr'])['std'].value_counts()
+        fig = px.bar(data__, x = data__.index, y = data__)
+
+    elif type_ == 'lf':
+        # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
+        # but this is what I came up with for now and filters what I want
+        data__ = pd.DataFrame([(data_[(data_.uniqueflightid == x)].lf.sum()) for x in data_.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
+        # data__ = pd.DataFrame([(data_[(data_.uniqueflightid == x)].lf.sum()) for x in data_.uniqueflightid.unique()], index = [x.split('-')[0] for x in df.uniqueflightid.unique()]).squeeze()
+        fig = px.bar(data__, x = data__.index , y = data__.values)
+
+    
+    fig.update_layout(       
+       template = 'plotly_dark',
+       xaxis_tickangle = -45,
+#TODO: Add still axis labels
+        )
+    return(html.Div([
+        dbc.Card(
+            dbc.CardBody([dcc.Graph(id = id_,
+                      figure = fig)
+                ])
+            
+            )
+        ])
+        )
+    
 
 # Main website lay-out
 # app.layout = html.Div(style={'width':'80%', 'margin':'auto'}, children=[
@@ -286,14 +323,14 @@ app.layout = html.Div(children=[
                             html.Br(),
                                 dbc.Row([
                                     dbc.Col([
-                                        html.H6('Departure time from FRA'),
-                                        drawRangeSliderWithoutCard(1, 'i1d2_', 0, 24, 0.5, 'time')
+                                        html.H6('Departure time from FRA (05:00-15:00)', id = 'H6-dep'),
+                                        drawRangeSliderWithoutCard(df, 'slider-dep', 0, 24, 1, 0.25, 'time')[0]
                                         ], width = 12)
                                     ]),
                                 dbc.Row([
                                     dbc.Col([
-                                        html.H6('Load factor'),
-                                        drawRangeSliderWithoutCard(1, 'i1d3_', 0, 1, 0.05, 'lf')
+                                        html.H6('Load factor', id = 'H6-lf'),
+                                        drawRangeSliderWithoutCard(df, 'slider-lf', 0, 1, 0.05, 0.05, 'lf')[0]
                                         ], width = 12)
                                     ]),
                             ])
@@ -325,6 +362,13 @@ app.layout = html.Div(children=[
                     drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[0]]),
                 dbc.Col([
                     drawDonutChart(df, 'donut_chart2', 'Cargo volume [tonnes]')[0]])
+                ]),
+            html.Br(),
+            dbc.Row([
+                dbc.Col([
+                    drawBarChart(df, 'blabla', 'frequency')]),
+                dbc.Col([
+                    drawBarChart(df, 'blabla', 'lf')])
                 ]),
             html.Br(),
             # Data table
@@ -374,12 +418,12 @@ def update_table(flightnr, dest):
     else:
         # filtered_df = df2[df2.flightnr.isin(flightnr)
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-        origin = list(df2['origin'].unique()) if origin in [None, []] else origin
+        # origin = list(df2['origin'].unique()) if origin in [None, []] else origin
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-        print(f'{flightnr}, {origin}, {dest}')
+        print(f'{flightnr}, {dest}')
         # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
         # dest = list(df2['dest'])
-        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.origin.isin(origin) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
+        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
         data = filtered_df.to_dict('records')
         return data
     
@@ -398,7 +442,7 @@ def update_pie_chart(flightnr, dest):
         # filtered_df = df2[df2.flightnr.isin(flightnr)
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-        print(f'{flightnr}, {origin}, {dest}')
+        print(f'{flightnr}, {dest}')
         # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
         # dest = list(df2['dest'])
         filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
@@ -424,6 +468,19 @@ def update_flight_route(flightnr, dest):
         filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest))]
         updated_flight_routes = getFlightRoutes(filtered_df)
         return (getmap('map', updated_flight_routes)[1])
+
+# Update text for slidesr
+@app.callback(
+    Output('H6-dep', 'children'),
+    Output('H6-lf', 'children'),
+    Input('slider-dep', 'value'),
+    Input('slider-lf', 'value')
+    )
+
+def update_slider(dep, lf):
+    time1 = getHHMM(dep[0]) 
+    time2 = getHHMM(dep[1])
+    return(f'Departure time at FRA: ({time1}-{time2})', f'Load factor: ({lf[0]}-{lf[1]})')
 
 
 # Update dropdown menus
@@ -456,7 +513,7 @@ def update_flight_route(flightnr, dest):
 #TODO: Add an option that toggles between the full dataframe (with individual shipments), and a dataframe that shows the totals per flight (number)
 #TODO: Add options to include lay-overs as well?
 #TODO: Add plot for: departure tiem (bar chart), frequency per day (line chart), load factor (line chart?)
-
+#TODO: use the new index to plot frequency and load factor as bar chart
 
 
 
