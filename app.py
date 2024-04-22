@@ -160,7 +160,35 @@ def drawTable(data_, id_):
         id = id_,
         columns=[{"name": i, "id": i} for i in data_.columns],
         data = data_.to_dict("records"),
-        page_size = 50
+        # Style headers
+        style_header={
+            'backgroundColor': 'rgb(210, 210, 210)',
+            'color': 'black',
+            'fontWeight': 'bold'
+        },
+        
+        # Style cells
+        style_cell={
+            'backgroundColor': 'rgb(255, 255, 255)',
+            'color': 'black',
+            'padding': '10px',
+            'textAlign': 'left'
+        },
+        
+        # Style data conditionally
+        style_data_conditional=[
+            {
+                'if': {'row_index': 'odd'},
+                'backgroundColor': 'rgb(240, 240, 240)'
+            }
+        ],
+
+        # Set the table to be interactive
+        # filter_action="native",  # Enable filtering
+        sort_action = "native",    # Enable sorting
+        page_action = "native",    # Enable pagination
+        page_size = 50             # Number of rows per page
+    
         )
     table.className='table-dark'
     return(html.Div([
@@ -255,7 +283,19 @@ def drawBarChart(data_, id_, type_):
         ])
         )
     
+# This function will be used to filter for load factor in the table and graphs
+def getLFFlights(data_, ll, ul):
+    # Get a summed list (Panda Series) of unique flights with respective load factors
+    # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
+    # but this is what I came up with for now and does what I want
+    summedLF = pd.DataFrame([(df[(df.uniqueflightid == x)].lf.sum()) for x in df.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
+    filtered_LF = summedLF[summedLF.between(ll, ul)] # Extract the rows that are between this range
+    flightnr_ = [x.split('-')[0] for x in filtered_LF.index]
+    return(flightnr_)
 
+def getTimeFlights(data_, ll, ul):
+    # Get a list of flight numbers that depart within the selected lower and upper limits
+    filtered_df = df2[df2['datetimeobject'].dt.time.between(pd.Timestamp(ll).time(), pd.Timestamp(ul).time())]
 
 #%%
 unique_flights = df.uniqueflightid.unique()
@@ -275,13 +315,13 @@ def drawLineChart(data_, id_, title_, type_):
         ylabel_ = 'Occurences'
         
         def getData():
-            depcat = [0] * 25
-            deptimes = [f'{x}:00' for x in range(0,25)]
+            depcat = [0] * 7
+            deptimes = ['Monday', 'Tuesday', 'Wednesday', 'Thurday', 'Friday', 'Saturday', 'Sunday']
             
-            depdata = df.drop_duplicates('uniqueflightid')['date']
+            depdata = df.drop_duplicates('uniqueflightid')['datetimeobject']
             
             for date in depdata:
-                date_ = int(date.split('-')[-1])
+                date_ = date.weekday()
                 depcat[date_] += 1
             return(deptimes, depcat)
         
@@ -294,10 +334,10 @@ def drawLineChart(data_, id_, title_, type_):
             depcat = [0] * 25
             deptimes = [f'{x}:00' for x in range(0,25)]
             
-            depdata = df.drop_duplicates('uniqueflightid')['std']
+            depdata = df.drop_duplicates('uniqueflightid')['datetimeobject']
             
             for time in depdata:
-                time_ = int(time.split(':')[0])
+                time_ = time.hour
                 depcat[time_] += 1
             return(deptimes, depcat)
     
@@ -310,6 +350,7 @@ def drawLineChart(data_, id_, title_, type_):
                   markers = True,
                   color_discrete_sequence=["yellow"])
     
+    fig.update_yaxes(ticklabelstep=2)
     fig.update_layout(
        title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
        xaxis_tickangle = -45,
@@ -481,11 +522,12 @@ app.layout = html.Div(children=[
 @app.callback(
     Output('table1', 'data'),
     Input('flightnr_filter', 'value'),
-    # Input('origin_filter', 'value'),
-    Input('dest_filter', 'value')
+    Input('dest_filter', 'value'),
+    Input('slider-dep', 'value'),
+    Input('slider-lf', 'value')
     )
-def update_table(flightnr, dest):
-    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
+def update_table(flightnr, dest, time_, lf):
+    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, lf]):
         data = df2.to_dict('records')
         return data
     else:
@@ -496,39 +538,43 @@ def update_table(flightnr, dest):
         print(f'{flightnr}, {dest}')
         # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
         # dest = list(df2['dest'])
-        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
+        
+        # Filter flight number, destination, departure time, load factor
+        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest) & df2['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df2.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         data = filtered_df.to_dict('records')
         return data
     
-# Update (pie) chart
-@app.callback(
-    Output('donut_chart1', 'figure'),
-    Input('flightnr_filter', 'value'),
-    # Input('origin_filter', 'value'),
-    Input('dest_filter', 'value')
-    )
-def update_pie_chart(flightnr, dest):
-    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
-        fig = drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
-        return fig
-    else:
-        # filtered_df = df2[df2.flightnr.isin(flightnr)
-        flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-        dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-        print(f'{flightnr}, {dest}')
-        # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
-        # dest = list(df2['dest'])
-        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
-        fig = drawDonutChart(filtered_df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
-        return fig
+#TODO: Ensure that the other charts, as well as the map, now also updates based on the filters
+#TODO: Remove date-time object still
+    
+# # Update (pie) chart
+# @app.callback(
+#     Output('donut_chart1', 'figure'),
+#     Input('flightnr_filter', 'value'),
+#     # Input('origin_filter', 'value'),
+#     Input('dest_filter', 'value')
+#     )
+# def update_pie_chart(flightnr, dest):
+#     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
+#         fig = drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
+#         return fig
+#     else:
+#         # filtered_df = df2[df2.flightnr.isin(flightnr)
+#         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
+#         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
+#         print(f'{flightnr}, {dest}')
+#         # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
+#         # dest = list(df2['dest'])
+#         filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
+#         fig = drawDonutChart(filtered_df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
+#         return fig
 
-#TODO: Fix the pie_chart updating
+# #TODO: Fix the pie_chart updating
 
 # Update map
 @app.callback(
     Output('map', 'figure'),
     Input('flightnr_filter', 'value'),
-    # Input('origin_filter', 'value'),
     Input('dest_filter', 'value')
           )
 def update_flight_route(flightnr, dest): 
@@ -538,11 +584,12 @@ def update_flight_route(flightnr, dest):
     else:
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
+         
         filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest))]
         updated_flight_routes = getFlightRoutes(filtered_df)
         return (getmap('map', updated_flight_routes)[1])
 
-# Update text for slidesr
+# Update text for sliders
 @app.callback(
     Output('H6-dep', 'children'),
     Output('H6-lf', 'children'),
@@ -554,6 +601,9 @@ def update_slider(dep, lf):
     time1 = getHHMM(dep[0]) 
     time2 = getHHMM(dep[1])
     return(f'Departure time at FRA: ({time1}-{time2})', f'Load factor: ({lf[0]}-{lf[1]})')
+
+# Update line charts
+
 
 
 # Update dropdown menus

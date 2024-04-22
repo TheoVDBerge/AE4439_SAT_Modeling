@@ -37,6 +37,7 @@ def processData(data):
             testshipments[f'{flightinfo[1]}-{flightinfo[0]}-{idy}-{i}'] = {
                 'uniqueflightid': f'{flightinfo[0]}-{date2date2(time_)}',
                 'shipmentnr': shipmentnr,
+                'datetimeobject': time_, # This is dropped in the displayed table, but used for some charts
                 'flightnr': flightinfo[0],
                 'date': date2date2(time_),
                 'std': date2time(time_),
@@ -49,7 +50,7 @@ def processData(data):
                 'uldtype': None,
                 'uldnr': None,
                 'specials': shipment['specials'] if 'specials' in shipment.keys() else 0,
-                'lf': (shipment['weight'] * shipment['amount'])/maxPayloadMD11}
+                'lf': round((shipment['weight'] * shipment['amount'])/maxPayloadMD11,4)}
     return()
 
 # testdata = {'test':{'value1': 0,
