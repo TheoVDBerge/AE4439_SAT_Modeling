@@ -256,6 +256,77 @@ def drawBarChart(data_, id_, type_):
         )
     
 
+
+#%%
+unique_flights = df.uniqueflightid.unique()
+test = df.drop_duplicates('uniqueflightid')['std']
+
+deptimes = [0] * 25
+for time in test:
+    time_ = int(time[0:2])
+    deptimes[time_] += 1
+
+#%%
+def drawLineChart(data_, id_, title_, type_):
+    
+    if type_ == 'daily':
+        
+        xlabel_ = 'Day'
+        ylabel_ = 'Occurences'
+        
+        def getData():
+            depcat = [0] * 25
+            deptimes = [f'{x}:00' for x in range(0,25)]
+            
+            depdata = df.drop_duplicates('uniqueflightid')['date']
+            
+            for date in depdata:
+                date_ = int(date.split('-')[-1])
+                depcat[date_] += 1
+            return(deptimes, depcat)
+        
+    elif type_ == 'hourly':
+        
+        xlabel_ = 'Time'
+        ylabel_ = 'Occurences'
+        
+        def getData():
+            depcat = [0] * 25
+            deptimes = [f'{x}:00' for x in range(0,25)]
+            
+            depdata = df.drop_duplicates('uniqueflightid')['std']
+            
+            for time in depdata:
+                time_ = int(time.split(':')[0])
+                depcat[time_] += 1
+            return(deptimes, depcat)
+    
+    
+    
+    fig = px.line(x = getData()[0],
+                  y = getData()[1],
+                  # title = 'Test',
+                  labels = {'x': xlabel_, 'y': ylabel_},
+                  markers = True,
+                  color_discrete_sequence=["yellow"])
+    
+    fig.update_layout(
+       title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
+       xaxis_tickangle = -45,
+       template = 'plotly_dark'
+   )
+    
+    return(html.Div([
+        dbc.Card(
+            dbc.CardBody([dcc.Graph(id = id_,
+                      figure = fig)
+                ])
+            
+            )
+        ])
+        )
+
+
 # Main website lay-out
 # app.layout = html.Div(style={'width':'80%', 'margin':'auto'}, children=[
 app.layout = html.Div(children=[
@@ -359,9 +430,11 @@ app.layout = html.Div(children=[
             html.Br(),
             dbc.Row([
                 dbc.Col([
-                    drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[0]]),
+                    # drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[0]]),
+                    drawLineChart(df, 'testt2', 'FRA daily departure occurences', 'daily')]),
                 dbc.Col([
-                    drawDonutChart(df, 'donut_chart2', 'Cargo volume [tonnes]')[0]])
+                    drawLineChart(df, 'testtt', 'FRA hourly departure occurences', 'hourly'),
+                    ])
                 ]),
             html.Br(),
             dbc.Row([
