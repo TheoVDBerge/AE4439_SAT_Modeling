@@ -229,12 +229,12 @@ def drawRangeSliderWithoutCard(data_, id_, min_, max_, ds_label, ds_mark, dataty
     if datatype == 'time':
         marks_ =  {str(round(k, 2)): {'label': f'{round(k, 2)}:00',
                      'style': {'transform':'rotate(45deg)'}} for k in np.arange(min_,max_+1)}
-        value_ = [5,15]
+        value_ = [0,23]
         
     elif datatype == 'lf':
         marks_ =  {str(round(k, 2)): {'label': "{:.2f}".format(float(round(k, 2))),
                      'style': {'transform':'rotate(45deg)'}} for k in np.arange(min_, max_ + ds_label, ds_label)}
-        value_ = [0.25, 0.75]
+        value_ = [0, 1]
         
     return(dcc.RangeSlider(min_, max_, ds_mark,
     # TODO: add different variable for ds for marks and ds for labels
@@ -255,37 +255,52 @@ def drawRangeSlider(data_, id_, min_, max_, ds, datatype):
         )
 
 def drawBarChart(data_, id_, type_, title_):
-    if type_ == 'frequency':
-        #TODO: Group departures per one hour timeslots
-        data__ = data_.drop_duplicates(subset = ['date', 'flightnr'])['std'].value_counts()
-        fig = px.bar(data__,
-                     x = data__.index,
-                     y = data__,
-                     labels = {'x': 'xlabel_', 'y': 'ylabel_'})
-        
-    elif type_ == 'volume':
-        data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
-        fig = px.bar(data__, 
-                     x = data__[0],
-                     y = data__[1],
-                     labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
-
-    elif type_ == 'lf':
-        # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
-        # but this is what I came up with for now and filters what I want
-        data__ = pd.DataFrame([(data_[(data_.uniqueflightid == x)].lf.sum()) for x in data_.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
-        # data__ = pd.DataFrame([(data_[(data_.uniqueflightid == x)].lf.sum()) for x in data_.uniqueflightid.unique()], index = [x.split('-')[0] for x in df.uniqueflightid.unique()]).squeeze()
-        fig = px.bar(data__,
-                     x = data__.index,
-                     y = data__.values,
-                     labels = {'x': 'Flights', 'y': 'Load factor'})
+    # Check if df is empty (bar charts don't like empty df it seems...)
+    #TODO: fix that when df is empty, shit doesn't crash
+    #TODO: ensure that when new data is selected it does not go down the drain
+    if data_.empty:
+        print('An empty df!')
+        print(data_)
+        data_.loc[0] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        print(data_)
+        px.bar()
+        fig = px.bar(data_, 
+                     x = None,
+                     y = None,
+                     labels = {'x': 'No', 'y': 'Data'})
+    
+    else:
+        # Regular operation of this function
+        if type_ == 'frequency':
+            #TODO: Group departures per one hour timeslots
+            data__ = data_.drop_duplicates(subset = ['date', 'flightnr'])['std'].value_counts()
+            fig = px.bar(data__,
+                         x = data__.index,
+                         y = data__,
+                         labels = {'x': 'xlabel_', 'y': 'ylabel_'})
+            
+        elif type_ == 'volume':
+            data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
+            fig = px.bar(data__, 
+                         x = data__[0],
+                         y = data__[1],
+                         labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
+    
+        elif type_ == 'lf':
+            # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
+            # but this is what I came up with for now and filters what I want
+            data__ = pd.DataFrame([(data_[(data_.uniqueflightid == x)].lf.sum()) for x in data_.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
+            fig = px.bar(data__,
+                         x = data__.index,
+                         y = data__.values,
+                         labels = {'x': 'Flights', 'y': 'Load factor'})
+        #TODO: add a stacked bar chart here using the same flight number, but different days
 
     
     fig.update_layout(
         title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
        template = 'plotly_dark',
        xaxis_tickangle = -45,
-#TODO: Add still axis labels
         )
     return(html.Div([
         dbc.Card(
@@ -295,68 +310,38 @@ def drawBarChart(data_, id_, type_, title_):
             
             )
         ])
-        )
-    
-# This function will be used to filter for load factor in the table and graphs
-def getLFFlights(data_, ll, ul):
-    # Get a summed list (Panda Series) of unique flights with respective load factors
-    # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
-    # but this is what I came up with for now and does what I want
-    summedLF = pd.DataFrame([(df[(df.uniqueflightid == x)].lf.sum()) for x in df.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
-    filtered_LF = summedLF[summedLF.between(ll, ul)] # Extract the rows that are between this range
-    flightnr_ = [x.split('-')[0] for x in filtered_LF.index]
-    return(flightnr_)
+        , fig)
 
-def getTimeFlights(data_, ll, ul):
-    # Get a list of flight numbers that depart within the selected lower and upper limits
-    filtered_df = df2[df2['datetimeobject'].dt.time.between(pd.Timestamp(ll).time(), pd.Timestamp(ul).time())]
-
-#%%
-unique_flights = df.uniqueflightid.unique()
-test = df.drop_duplicates('uniqueflightid')['std']
-
-deptimes = [0] * 25
-for time in test:
-    time_ = int(time[0:2])
-    deptimes[time_] += 1
-
-#%%
 def drawLineChart(data_, id_, title_, type_):
     
+    depdata = data_.drop_duplicates('uniqueflightid')['datetimeobject']
+    
     if type_ == 'daily':
+        
+        deptimes = ['Monday', 'Tuesday', 'Wednesday', 'Thurday', 'Friday', 'Saturday', 'Sunday']
         
         xlabel_ = 'Day'
         ylabel_ = 'Occurences'
         
-        def getData():
-            depcat = [0] * 7
-            deptimes = ['Monday', 'Tuesday', 'Wednesday', 'Thurday', 'Friday', 'Saturday', 'Sunday']
-            
-            depdata = df.drop_duplicates('uniqueflightid')['datetimeobject']
-            
-            for date in depdata:
-                date_ = date.weekday()
-                depcat[date_] += 1
-            return(deptimes, depcat)
+        depcat = [0] * 7
+        for date in depdata:
+            date_ = date.weekday()
+            depcat[date_] += 1
         
     elif type_ == 'hourly':
+        
+        deptimes = [f'{x}:00' for x in range(0,25)]
         
         xlabel_ = 'Time'
         ylabel_ = 'Occurences'
         
-        def getData():
-            depcat = [0] * 25
-            deptimes = [f'{x}:00' for x in range(0,25)]
+        depcat = [0] * 25
+        for time in depdata:
+            time_ = time.hour
+            depcat[time_] += 1
             
-            depdata = df.drop_duplicates('uniqueflightid')['datetimeobject']
-            
-            for time in depdata:
-                time_ = time.hour
-                depcat[time_] += 1
-            return(deptimes, depcat)
-    
-    fig = px.line(x = getData()[0],
-                  y = getData()[1],
+    fig = px.line(x = deptimes,
+                  y = depcat,
                   # title = 'Test',
                   labels = {'x': xlabel_, 'y': ylabel_},
                   markers = True,
@@ -378,6 +363,27 @@ def drawLineChart(data_, id_, title_, type_):
             )
         ]), fig
         )
+    
+# This function will be used to filter for load factor in the table and graphs
+def getLFFlights(data_, ll, ul):
+    # Get a summed list (Panda Series) of unique flights with respective load factors
+    # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
+    # but this is what I came up with for now and does what I want
+    summedLF = pd.DataFrame([(df[(df.uniqueflightid == x)].lf.sum()) for x in df.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
+    filtered_LF = summedLF[summedLF.between(ll, ul)] # Extract the rows that are between this range
+    flightnr_ = [x.split('-')[0] for x in filtered_LF.index]
+    return(flightnr_)
+
+#%%
+unique_flights = df.uniqueflightid.unique()
+test = df.drop_duplicates('uniqueflightid')['std']
+
+deptimes = [0] * 25
+for time in test:
+    time_ = int(time[0:2])
+    deptimes[time_] += 1
+
+#%%
 
 
 # Main website lay-out
@@ -447,7 +453,7 @@ app.layout = html.Div(children=[
                             html.Br(),
                                 dbc.Row([
                                     dbc.Col([
-                                        html.H6('Departure time from FRA (05:00-15:00)', id = 'H6-dep'),
+                                        html.H6('Departure time from FRA (00:00-23:00)', id = 'H6-dep'),
                                         drawRangeSliderWithoutCard(df, 'slider-dep', 0, 23, 1, 0.25, 'time')[0]
                                         ], width = 12)
                                     ]),
@@ -484,18 +490,18 @@ app.layout = html.Div(children=[
             dbc.Row([
                 dbc.Col([
                     # drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[0]]),
-                    drawLineChart(df, 'dailydep', 'FRA daily departure occurences', 'daily')[0]
+                    drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[0]
                     ]),
                 dbc.Col([
-                    drawLineChart(df, 'hourlydep', 'FRA hourly departure occurences', 'hourly')[0],
+                    drawLineChart(df, 'hourlydep', 'FRA hourly departures', 'hourly')[0],
                     ])
                 ]),
             html.Br(),
             dbc.Row([
                 dbc.Col([
-                    drawBarChart(df, 'blabla', 'volume', 'Total volume')]),
+                    drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume')[0]]),
                 dbc.Col([
-                    drawBarChart(df, 'blabla1', 'lf', 'Load factor')])
+                    drawBarChart(df, 'TotalLF', 'lf', 'Load factor')[0]])
                 ]),
             html.Br(),
             # Data table
@@ -553,8 +559,8 @@ def update_table(flightnr, dest, time_, lf):
         # dest = list(df2['dest'])
         
         # Filter flight number, destination, departure time, load factor
-        filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest) & df2['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df2.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
-        data = filtered_df.to_dict('records')
+        filtered_df_table = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest) & df2['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df2.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
+        data = filtered_df_table.to_dict('records')
         return data
     
 #TODO: Ensure that the other charts, as well as the map, now also updates based on the filters
@@ -600,8 +606,9 @@ def update_flight_route(flightnr, dest, time_, lf):
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
-        updated_flight_routes = getFlightRoutes(filtered_df)
+        # filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
+        filtered_df_map = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        updated_flight_routes = getFlightRoutes(filtered_df_map)
         return (getmap('map', updated_flight_routes)[1])
 
 # Update text for sliders
@@ -620,6 +627,7 @@ def update_slider(dep, lf):
 # Update line charts
 @app.callback(
     Output('dailydep', 'figure'),
+    Output('hourlydep', 'figure'),
     Input('flightnr_filter', 'value'),
     Input('dest_filter', 'value'),
     Input('slider-dep', 'value'),
@@ -627,16 +635,56 @@ def update_slider(dep, lf):
           )
 def update_line_chart(flightnr, dest, time_, lf):
     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
-        fig = drawLineChart(df, 'dailydep', 'FRA daily departure occurences', 'daily')[1]
+        fig = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
         return fig
     else:
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
-        fig = drawLineChart(filtered_df, 'dailydep', 'FRA daily departure occurences', 'daily')[1]
-        print(f'{flightnr, dest, time_, lf}')
+        filtered_df_line = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        
+        fig_daily = drawLineChart(filtered_df_line, 'dailydep', 'FRA daily departures', 'daily')[1]
+        fig_hourly = drawLineChart(filtered_df_line, 'hourlydep', 'FRA hourly departures', 'hourly')[1]
+        return(fig_daily, fig_hourly)
+
+
+# Update bar chart
+@app.callback(
+    Output('TotalVolume', 'figure'),
+    Output('TotalLF', 'figure'),
+    Input('flightnr_filter', 'value'),
+    Input('dest_filter', 'value'),
+    Input('slider-dep', 'value'),
+    Input('slider-lf', 'value')
+          )
+def update_bar_chart(flightnr, dest, time_, lf):
+    if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
+        fig = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
         return fig
+    else:
+        flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
+        dest = list(df2['dest'].unique()) if dest in [None, []] else dest
+         
+        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        print(f'{flightnr}, {dest}, {time_}, {lf}')
+        
+        fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume')[1]
+        fig_lf= drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Load factor')[1]
+        return(fig_volume, fig_lf)
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Update dropdown menus
