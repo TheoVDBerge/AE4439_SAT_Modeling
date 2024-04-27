@@ -13,7 +13,7 @@ from main_data import df
 print('Imported main_data.py')
 from airport_data import df_airport
 print('Imported airport data')
-from helper_functions import getFlightRoutes, getHHMM
+from helper_functions import getFlightRoutes, getHHMM, getDayOfWeek
 print('Imported helper_functions.py')
 #%%
 print('Imported all requirements')
@@ -38,7 +38,6 @@ To do:
     - Flight routes filteren in functie maken en dan helper_functions.py maken
     - ?
 """
-
 
 # TODO: Fix the route column breaking the code
 df2 = df.drop(columns=['route'])
@@ -255,53 +254,101 @@ def drawRangeSlider(data_, id_, min_, max_, ds, datatype):
         )
 
 def drawBarChart(data_, id_, type_, title_):
-    # Check if df is empty (bar charts don't like empty df it seems...)
-    #TODO: fix that when df is empty, shit doesn't crash
-    #TODO: ensure that when new data is selected it does not go down the drain
-    if data_.empty:
-        print('An empty df!')
-        print(data_)
-        data_.loc[0] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        print(data_)
-        px.bar()
-        fig = px.bar(data_, 
-                     x = None,
-                     y = None,
-                     labels = {'x': 'No', 'y': 'Data'})
-    
-    else:
-        # Regular operation of this function
-        if type_ == 'frequency':
-            #TODO: Group departures per one hour timeslots
-            data__ = data_.drop_duplicates(subset = ['date', 'flightnr'])['std'].value_counts()
-            fig = px.bar(data__,
-                         x = data__.index,
-                         y = data__,
-                         labels = {'x': 'xlabel_', 'y': 'ylabel_'})
-            
-        elif type_ == 'volume':
-            data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
-            fig = px.bar(data__, 
-                         x = data__[0],
-                         y = data__[1],
-                         labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
-    
-        elif type_ == 'lf':
-            # The data here is extracted from the df into a list, turned into a dataFrame and back to a Series.... Probably there is a cleaner way
-            # but this is what I came up with for now and filters what I want
-            data__ = pd.DataFrame([(data_[(data_.uniqueflightid == x)].lf.sum()) for x in data_.uniqueflightid.unique()], index = [x for x in df.uniqueflightid.unique()]).squeeze()
-            fig = px.bar(data__,
-                         x = data__.index,
-                         y = data__.values,
-                         labels = {'x': 'Flights', 'y': 'Load factor'})
-        #TODO: add a stacked bar chart here using the same flight number, but different days
+    if type_ == 'volume':
+        # Create a list of lists with the required data [[Destination], [Volume]]
+        data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
+        
+        # Turn this list of lists into a DataFrame for better handling by Dash, where each nested list is a column
+        df_volume = pd.DataFrame(zip(*data__), columns = ['Destination', 'Volume'])
+        
+        fig = px.bar(df_volume, 
+                     x = 'Destination',
+                     y = 'Volume',
+                     labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
+        
+        fig.update_layout(
+            title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
+           template = 'plotly_dark',
+           xaxis_tickangle = -45,
+            )
 
+    elif type_ == 'lf':
+        
+        # Extract the required load factors, based on date (primary)
+        # and flightnr (secondary). Then, the load factor is calculated
+        # for each individual flight per day.
+        sorted_data = df.groupby(['date', 'flightnr'])['lf'].sum()
+        
+        # Due to the double indexing, I extract the unique values of 
+        # both levels of indexes.
+        unique_dates = sorted_data.index.get_level_values('date').unique()
+        unique_flightnr = sorted_data.index.get_level_values('flightnr').unique()
+
+        # Rearrange the data so that it becomes a list of lists, where the list
+        # has len(unique_dates) and each nested list len(unique_flightnr).
+        # In other words, every list is a day of the week where all flight numbers
+        # are represented. 
+        daily_data = []
+
+        for flight in unique_dates:
+            temp = []
+            for date in unique_flightnr:
+                try:
+                    temp.append(sorted_data[flight][date])
+                except:
+                    # In case of flight not being operated on a day of the week,
+                    # a lf of 0 is added. This is required to keep track of the
+                    # different flight numbers whilst plotting.
+                    temp.append(0)
+            
+            daily_data.append(temp)
+            
+        # Create a final dictionary that will ease the plotting
+        final_data = {getDayOfWeek(unique_dates[i])[1]: daily_data[i] for i in range(len(unique_dates))}
+            
+        # Create a figure object
+        fig = go.Figure()
+
+        # Loop through the final_data to create a bar for each day of the week
+        for day, values in final_data.items():
+            fig.add_trace(go.Bar(name=day, x=unique_flightnr, y=values))
+
+        fig.update_layout(barmode='stack')
     
     fig.update_layout(
         title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
        template = 'plotly_dark',
        xaxis_tickangle = -45,
         )
+    return(html.Div([
+        dbc.Card(
+            dbc.CardBody([dcc.Graph(id = id_,
+                      figure = fig)
+                ])
+            
+            )
+        ])
+        , fig)
+
+
+def drawBarChart2(data_, id_, type_, title_):
+    # Create a list of lists with the required data [[Destination], [Volume]]
+    data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
+    
+    # Turn this list of lists into a DataFrame for better handling by Dash, where each nested list is a column
+    df_volume = pd.DataFrame(zip(*data__), columns = ['Destination', 'Volume'])
+    
+    fig = px.bar(df_volume, 
+                 x = 'Destination',
+                 y = 'Volume',
+                 labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
+    
+    fig.update_layout(
+        title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
+       template = 'plotly_dark',
+       xaxis_tickangle = -45,
+        )
+    
     return(html.Div([
         dbc.Card(
             dbc.CardBody([dcc.Graph(id = id_,
@@ -499,7 +546,7 @@ app.layout = html.Div(children=[
             html.Br(),
             dbc.Row([
                 dbc.Col([
-                    drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume')[0]]),
+                    drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume2')[0]]),
                 dbc.Col([
                     drawBarChart(df, 'TotalLF', 'lf', 'Load factor')[0]])
                 ]),
@@ -649,9 +696,32 @@ def update_line_chart(flightnr, dest, time_, lf):
 
 
 # Update bar chart
+# @app.callback(
+#     Output('TotalVolume', 'figure'),
+#     Output('TotalLF', 'figure'),
+#     Input('flightnr_filter', 'value'),
+#     Input('dest_filter', 'value'),
+#     Input('slider-dep', 'value'),
+#     Input('slider-lf', 'value')
+#           )
+# def update_bar_chart(flightnr, dest, time_, lf):
+#     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
+#         fig = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
+#         return fig
+#     else:
+#         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
+#         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
+         
+#         filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+#         print(f'{flightnr}, {dest}, {time_}, {lf}')
+        
+#         fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume')[1]
+#         fig_lf= drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Load factor')[1]
+#         return(fig_volume, fig_lf)
+    
+# Update bar chart
 @app.callback(
     Output('TotalVolume', 'figure'),
-    Output('TotalLF', 'figure'),
     Input('flightnr_filter', 'value'),
     Input('dest_filter', 'value'),
     Input('slider-dep', 'value'),
@@ -668,11 +738,8 @@ def update_bar_chart(flightnr, dest, time_, lf):
         filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         print(f'{flightnr}, {dest}, {time_}, {lf}')
         
-        fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume')[1]
-        fig_lf= drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Load factor')[1]
-        return(fig_volume, fig_lf)
-    
-
+        fig_volume = drawBarChart2(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume_filt')[1]
+        return(fig_volume)
 
 
 
