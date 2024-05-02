@@ -34,3 +34,4 @@ def getDayOfWeek(date_string):
     
     # Return both the numeric index and the name of the day of the week
     return (day_of_week_index, day_of_week_name)
+

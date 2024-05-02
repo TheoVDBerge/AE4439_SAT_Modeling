@@ -24,6 +24,16 @@ def date2time(date_):
 def unix2norm(timestamp):
     return(datetime.datetime.fromtimestamp(timestamp))
 
+def flatten(input_):
+    temp = []
+    for lst in input_:
+        if isinstance(lst, list):
+            for nested_list in lst:
+                temp.append(nested_list)
+        else:
+            temp.append()
+    return(temp)
+
 def processData(data):
     maxPayloadMD11 = 90_000 # kg
     segments = list(data['segments'])
@@ -43,6 +53,7 @@ def processData(data):
                 'std': date2time(time_),
                 'origin': flightinfo[2],
                 'dest': flightinfo[3],
+                # 'route':flatten([[x.split('-')[2], x.split('-')[3]] for x in legs]),
                 'route':[[x.split('-')[2], x.split('-')[3]] for x in legs],
                 'numpieces': shipment['amount'], # the amount of this item in each shipment
                 'weight_1_item': shipment['weight'],

@@ -40,10 +40,15 @@ To do:
 """
 
 # TODO: Fix the route column breaking the code
+# Flattening the list will be done here and not in the main_data, as it will break the getmap function and i don't feel like fixing it
 df2 = df.drop(columns=['route'])
 
-
-
+def getAirportNames(airports):
+    temp = []
+    for airport in airports:
+        temp.append(f'{airport} - {df_airport[df_airport.iata == airport].city[0]}') 
+    return(temp)
+#%%
 # Map of airports and routes
 def getmap(id_, flight_routes):
     fig = go.Figure(go.Scattergeo())
@@ -84,7 +89,7 @@ def getmap(id_, flight_routes):
 
     fig.update_layout(
         margin=dict(l=10, r=10, t=50, b=20),
-        title_text = 'Legs for selected data (hover for airport names)',
+        title_text = 'Flown legs for selected data (hover for airport names)',
         title_x = 0.5,
         showlegend = False,
         geo = dict(
@@ -110,8 +115,6 @@ def getmap(id_, flight_routes):
             ])
         )
     ]), fig)
-
-
 
 
 def drawDropdownWithoutCard(options_, id_, placeholder_, width_):
@@ -183,7 +186,7 @@ def drawTable(data_, id_):
         ],
 
         # Set the table to be interactive
-        # filter_action="native",  # Enable filtering
+        filter_action="native",  # Enable filtering
         sort_action = "native",    # Enable sorting
         page_action = "native",    # Enable pagination
         page_size = 50             # Number of rows per page
@@ -203,7 +206,7 @@ def drawTable(data_, id_):
 def drawDonutChart(data_, id_, title_):
     fig = go.Figure(
         data = go.Pie(
-            labels = list(df.dest.unique()),
+            labels = getAirportNames(list(df.dest.unique())),
             values = [(df[df.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(df.dest.unique())],
             hole = 0.4,
             textinfo = 'label+percent',
@@ -255,21 +258,22 @@ def drawRangeSlider(data_, id_, min_, max_, ds, datatype):
 
 def drawBarChart(data_, id_, type_, title_):
     if type_ == 'volume':
+        #TODO: Add percentages to the labels
         # Create a list of lists with the required data [[Destination], [Volume]]
         data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
         
         # Turn this list of lists into a DataFrame for better handling by Dash, where each nested list is a column
-        df_volume = pd.DataFrame(zip(*data__), columns = ['Destination', 'Volume'])
+        df_volume = pd.DataFrame(zip(*data__), columns = ['Destination', 'Volume']).sort_values(by='Volume', ascending = False)
         
         fig = px.bar(df_volume, 
                      x = 'Destination',
                      y = 'Volume',
-                     labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
+                     labels = {'Destination': 'Destination', 'Volume': 'Volume [tonnes]'})
         
         fig.update_layout(
             title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
-           template = 'plotly_dark',
-           xaxis_tickangle = -45,
+            template = 'plotly_dark',
+            xaxis_tickangle = -45,
             )
 
     elif type_ == 'lf':
@@ -277,7 +281,7 @@ def drawBarChart(data_, id_, type_, title_):
         # Extract the required load factors, based on date (primary)
         # and flightnr (secondary). Then, the load factor is calculated
         # for each individual flight per day.
-        sorted_data = df.groupby(['date', 'flightnr'])['lf'].sum()
+        sorted_data = data_.groupby(['date', 'flightnr'])['lf'].sum()
         
         # Due to the double indexing, I extract the unique values of 
         # both levels of indexes.
@@ -320,35 +324,6 @@ def drawBarChart(data_, id_, type_, title_):
        template = 'plotly_dark',
        xaxis_tickangle = -45,
         )
-    return(html.Div([
-        dbc.Card(
-            dbc.CardBody([dcc.Graph(id = id_,
-                      figure = fig)
-                ])
-            
-            )
-        ])
-        , fig)
-
-
-def drawBarChart2(data_, id_, type_, title_):
-    # Create a list of lists with the required data [[Destination], [Volume]]
-    data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
-    
-    # Turn this list of lists into a DataFrame for better handling by Dash, where each nested list is a column
-    df_volume = pd.DataFrame(zip(*data__), columns = ['Destination', 'Volume'])
-    
-    fig = px.bar(df_volume, 
-                 x = 'Destination',
-                 y = 'Volume',
-                 labels = {'x': 'Destination', 'y': 'Volume [tonnes]'})
-    
-    fig.update_layout(
-        title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
-       template = 'plotly_dark',
-       xaxis_tickangle = -45,
-        )
-    
     return(html.Div([
         dbc.Card(
             dbc.CardBody([dcc.Graph(id = id_,
@@ -421,6 +396,43 @@ def getLFFlights(data_, ll, ul):
     flightnr_ = [x.split('-')[0] for x in filtered_LF.index]
     return(flightnr_)
 
+def getFlightDF(data_):
+    sorted_data = data_.groupby(['uniqueflightid'])[['numpieces', 'totalWeight', 'lf']].sum()
+    new_df = data_.drop_duplicates('uniqueflightid')
+    for i, j in zip(new_df.index, new_df.uniqueflightid):
+        new_df.loc[i, ['numpieces', 'totalWeight', 'lf']] = list(sorted_data.loc[j])
+        new_df.loc[i, ['specials']] = 'N/A'
+    return(new_df)
+
+# def flatten(input_):
+#     temp = []
+#     for lst in input_:
+#         if isinstance(lst, list):
+#             for nested_list in lst:
+#                 temp.append(nested_list)
+#         else:
+#             temp.append()
+#     return(temp)
+
+# def flattenRoute(data_):
+    
+#     def removeDuplicateStrings(input_):
+#         seen = set()
+#         result = []
+#         for item in flatten(input_):
+#             if item not in seen:
+#                 seen.add(item)
+#                 result.append(item)
+    
+#     new_df = data_
+#     for i, j in zip(data_.index, data_.route):
+#         new_df.loc[i, ['route']] = removeDuplicateStrings(j)
+        
+#     return(new_df)
+
+
+test = getFlightDF(df)
+
 #%%
 unique_flights = df.uniqueflightid.unique()
 test = df.drop_duplicates('uniqueflightid')['std']
@@ -470,7 +482,7 @@ app.layout = html.Div(children=[
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Destination'),
-                                        drawDropdownWithoutCard(list(df.dest.unique()), 'dest_filter', 'Select an airport', '100%'),
+                                        drawDropdownWithoutCard(getAirportNames(list(df.dest.unique())), 'dest_filter', 'Select an airport', '100%'),
                                     ], width=6),
                                     # dbc.Col([
                                     #     html.H6('Origin'),
@@ -489,12 +501,19 @@ app.layout = html.Div(children=[
                                     ], width = 6),
                                     dbc.Col([
                                         html.H6('Data options'),
-                                        dcc.RadioItems(
+                                        dcc.RadioItems(id = 'dataSelection',
                                             options=['Shipments', 'Flights'],
                                             value='Shipments',
                                             inline=True,
+                                            inputStyle={"margin-right": "10px",
+                                                        "margin-left": "10px"},
                                                     ),
-                                    ], width = 6),
+                                    ], width = 4),
+                                    dbc.Col([
+                                        html.Button('Reset', id = 'ResetButton',
+                                                    style = {"margin-top": "20px",
+                                                             "margin-right": "5px"}),
+                                        ], width = 2)
                                 ]),
                             html.Br(),
                             html.Br(),
@@ -546,7 +565,7 @@ app.layout = html.Div(children=[
             html.Br(),
             dbc.Row([
                 dbc.Col([
-                    drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume2')[0]]),
+                    drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[0]]),
                 dbc.Col([
                     drawBarChart(df, 'TotalLF', 'lf', 'Load factor')[0]])
                 ]),
@@ -590,23 +609,25 @@ app.layout = html.Div(children=[
     Input('flightnr_filter', 'value'),
     Input('dest_filter', 'value'),
     Input('slider-dep', 'value'),
-    Input('slider-lf', 'value')
+    Input('slider-lf', 'value'),
+    Input('dataSelection', 'value')
     )
-def update_table(flightnr, dest, time_, lf):
+def update_table(flightnr, dest, time_, lf, type_):
+    
+    if type_ == 'Shipments':
+        df_table = df2
+    elif type_ == 'Flights':
+        df_table = getFlightDF(df2)
+    
     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
-        data = df2.to_dict('records')
+        data = df_table.to_dict('records')
         return data
     else:
-        # filtered_df = df2[df2.flightnr.isin(flightnr)
-        flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-        # origin = list(df2['origin'].unique()) if origin in [None, []] else origin
-        dest = list(df2['dest'].unique()) if dest in [None, []] else dest
+        flightnr = list(df_table['flightnr'].unique()) if flightnr in [None, []] else flightnr
+        dest = list(df_table['dest'].unique()) if dest in [None, []] else dest
         print(f'{flightnr}, {dest}')
-        # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
-        # dest = list(df2['dest'])
-        
         # Filter flight number, destination, departure time, load factor
-        filtered_df_table = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest) & df2['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df2.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
+        filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         data = filtered_df_table.to_dict('records')
         return data
     
@@ -722,6 +743,7 @@ def update_line_chart(flightnr, dest, time_, lf):
 # Update bar chart
 @app.callback(
     Output('TotalVolume', 'figure'),
+    Output('TotalLF', 'figure'),
     Input('flightnr_filter', 'value'),
     Input('dest_filter', 'value'),
     Input('slider-dep', 'value'),
@@ -729,8 +751,9 @@ def update_line_chart(flightnr, dest, time_, lf):
           )
 def update_bar_chart(flightnr, dest, time_, lf):
     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
-        fig = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
-        return fig
+        fig_volume = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
+        fig_lf = drawBarChart(df, 'TotalLF', 'lf', 'Load factor')[1]
+        return(fig_volume, fig_lf)
     else:
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
@@ -738,19 +761,28 @@ def update_bar_chart(flightnr, dest, time_, lf):
         filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         print(f'{flightnr}, {dest}, {time_}, {lf}')
         
-        fig_volume = drawBarChart2(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume_filt')[1]
-        return(fig_volume)
+        fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
+        fig_lf = drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Load factor')[1]
+        return(fig_volume, fig_lf)
 
+# Update button
+@app.callback(
+    Output('flightnr_filter', 'value'),
+    Output('dest_filter', 'value'),
+    Output('slider-dep', 'value'),
+    Output('slider-lf', 'value'),
+    Output('dataSelection', 'value'),
+    Input('ResetButton', 'n_clicks'),
+    prevent_initial_call = True
+    )
 
-
-
-
-
-
-
-
-
-
+def update_filters(value1, value2):
+    flightfilter, destinations = None, None
+    slider1, slider2 = [0,23], [0,1]
+    radioItem = 'Shipments'
+    return(flightfilter, destinations, slider1, slider2, radioItem)
+    
+#TODO: Fix this updating
 
 
 
