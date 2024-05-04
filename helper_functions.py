@@ -1,5 +1,5 @@
-import pandas as pd
 from datetime import datetime
+import osmnx as ox
 # from main_data import df
 
 def getFlightRoutes(df):
@@ -37,12 +37,12 @@ def getDayOfWeek(date_string):
 
 def getPayload(range_):
     
-    range_ = range_ / 1.852
+    # range_ = range_ / 1.852
     
     def pounds2kg(lbs):
         return(lbs*0.45359237)
     
-    # Takes range in km, returns payload in kg
+    # Takes range in nm, returns payload in kg
     if range_ <= 3_890:
         return(pounds2kg(174_200))
     elif 3_900 < range_ <= 6_600:
@@ -55,3 +55,12 @@ def getPayload(range_):
     else:
         print('Out of range!')
         return(None)
+
+def getDistance(airport1, airport2): 
+    # Returns great circle distance in nm
+    lat1, lon1 = df_airport[df_airport.iata == airport1].lat.iloc[0], df_airport[df_airport.iata == airport1].lon.iloc[0]
+    lat2, lon2 = df_airport[df_airport.iata == airport2].lat.iloc[0], df_airport[df_airport.iata == airport2].lon.iloc[0]
+
+    return(ox.distance.great_circle(
+        lat2, lon2, lat1, lon1,
+        earth_radius=6371009)/1852)

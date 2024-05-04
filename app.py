@@ -10,6 +10,7 @@ from dash.dependencies import Output
 import dash_bootstrap_components as dbc
 import plotly.express as px
 from main_data import df
+import osmnx as ox
 print('Imported main_data.py')
 from airport_data import df_airport
 print('Imported airport data')
@@ -882,7 +883,8 @@ def update_filters(value1):
 #TODO: Add plot for: departure tiem (bar chart), frequency per day (line chart), load factor (line chart?)
 #TODO: use the new index to plot frequency and load factor as bar chart
 #TODO: Add a README where the package versions of all the used packages are described, as well as a quick overview of the code.
-
+#TODO: Update the payload for it to be consistent with payload-range diagram.
+# also don't forget to then split the data into separate legs, to get accurate load factor.
 
 
 
@@ -900,3 +902,4 @@ def update_filters(value1):
 
 if __name__ == '__main__':
     app.run_server(debug=True)
+   
