@@ -35,3 +35,23 @@ def getDayOfWeek(date_string):
     # Return both the numeric index and the name of the day of the week
     return (day_of_week_index, day_of_week_name)
 
+def getPayload(range_):
+    
+    range_ = range_ / 1.852
+    
+    def pounds2kg(lbs):
+        return(lbs*0.45359237)
+    
+    # Takes range in km, returns payload in kg
+    if range_ <= 3_890:
+        return(pounds2kg(174_200))
+    elif 3_900 < range_ <= 6_600:
+        print('test')
+        slope = (194_500 - 105_000)/(6_600 - 3_900)
+        return(pounds2kg(194_500 - (slope)*(range_ - 3_900)))
+    elif 6_600 < range_ <= 8_200:
+        slope = (105_000 - 0)/(8_200 - 6_600)
+        return(pounds2kg(105_000 - (slope)*(range_ - 6_600)))
+    else:
+        print('Out of range!')
+        return(None)

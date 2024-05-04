@@ -44,10 +44,14 @@ To do:
 df2 = df.drop(columns=['route'])
 
 def getAirportNames(airports):
+    temp_dropdown = []
     temp = []
     for airport in airports:
-        temp.append(f'{airport} - {df_airport[df_airport.iata == airport].city[0]}') 
-    return(temp)
+        temp_dropdown.append({'label': f'{airport} - {df_airport[df_airport.iata == airport].city[0]}', 'value': f'{airport}'})
+        temp.append(f'{airport}') 
+    return(temp_dropdown, temp)
+
+
 #%%
 # Map of airports and routes
 def getmap(id_, flight_routes):
@@ -206,7 +210,7 @@ def drawTable(data_, id_):
 def drawDonutChart(data_, id_, title_):
     fig = go.Figure(
         data = go.Pie(
-            labels = getAirportNames(list(df.dest.unique())),
+            labels = getAirportNames(list(df.dest.unique()))[1],
             values = [(df[df.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(df.dest.unique())],
             hole = 0.4,
             textinfo = 'label+percent',
@@ -268,7 +272,9 @@ def drawBarChart(data_, id_, type_, title_):
         fig = px.bar(df_volume, 
                      x = 'Destination',
                      y = 'Volume',
-                     labels = {'Destination': 'Destination', 'Volume': 'Volume [tonnes]'})
+                     labels = {'Destination': 'Destination', 'Volume': 'Volume [tonnes]'},
+                     color_discrete_sequence = ['#ffb500']
+                     )
         
         fig.update_layout(
             title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
@@ -385,6 +391,66 @@ def drawLineChart(data_, id_, title_, type_):
             )
         ]), fig
         )
+
+def drawHistogram(data_, id_, title_, type_):
+    
+    depdata = data_.drop_duplicates('uniqueflightid')['datetimeobject']
+    
+    if type_ == 'daily':
+        
+        deptimes = ['Monday', 'Tuesday', 'Wednesday', 'Thurday', 'Friday', 'Saturday', 'Sunday']
+        
+        xlabel_ = 'Day'
+        ylabel_ = 'Occurences'
+        range_ = [-0.5,6.5]
+        n_bins = 7
+        
+        depcat = [0] * 7
+        for date in depdata:
+            date_ = date.weekday()
+            depcat[date_] += 1
+        
+    elif type_ == 'hourly':
+        
+        deptimes = [f'{x}:00' for x in range(0,25)]
+        
+        xlabel_ = 'Time'
+        ylabel_ = 'Occurences'
+        range_ = [0,25]
+        n_bins = 25
+
+        # This could have been done cleaner, but I already wrote this code for the line charts
+        # and this format works well for hour and day based data. Days of the week (strings) are not countable
+        # which messes up the ordering of the bar chart. Sticking to the old method gives the desired result.
+        depcat = [0] * 25
+        for time in depdata:
+            time_ = time.hour
+            depcat[time_] += 1
+            
+    fig = px.histogram(x = deptimes,
+                       y = depcat,
+                       nbins = n_bins,
+                       color_discrete_sequence=["#ffb500"])
+    
+    fig.update_layout(
+       title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
+       xaxis_tickangle = -45,
+       bargap = 0.1,
+       yaxis_title = ylabel_,
+       xaxis_title = xlabel_,
+       xaxis_range = range_,
+       template = 'plotly_dark'
+    )
+    
+    return(html.Div([
+        dbc.Card(
+            dbc.CardBody([dcc.Graph(id = id_,
+                      figure = fig)
+                ])
+            
+            )
+        ]), fig
+        )
     
 # This function will be used to filter for load factor in the table and graphs
 def getLFFlights(data_, ll, ul):
@@ -482,7 +548,7 @@ app.layout = html.Div(children=[
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Destination'),
-                                        drawDropdownWithoutCard(getAirportNames(list(df.dest.unique())), 'dest_filter', 'Select an airport', '100%'),
+                                        drawDropdownWithoutCard(getAirportNames(list(df.dest.unique()))[0], 'dest_filter', 'Select an airport', '100%'),
                                     ], width=6),
                                     # dbc.Col([
                                     #     html.H6('Origin'),
@@ -556,10 +622,10 @@ app.layout = html.Div(children=[
             dbc.Row([
                 dbc.Col([
                     # drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[0]]),
-                    drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[0]
+                    drawHistogram(df, 'dailydep', 'FRA daily departures', 'daily')[0]
                     ]),
                 dbc.Col([
-                    drawLineChart(df, 'hourlydep', 'FRA hourly departures', 'hourly')[0],
+                    drawHistogram(df, 'hourlydep', 'FRA hourly departures', 'hourly')[0],
                     ])
                 ]),
             html.Br(),
@@ -625,7 +691,6 @@ def update_table(flightnr, dest, time_, lf, type_):
     else:
         flightnr = list(df_table['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df_table['dest'].unique()) if dest in [None, []] else dest
-        print(f'{flightnr}, {dest}')
         # Filter flight number, destination, departure time, load factor
         filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         data = filtered_df_table.to_dict('records')
@@ -692,7 +757,7 @@ def update_slider(dep, lf):
     time2 = getHHMM(dep[1])
     return(f'Departure time at FRA: ({time1}-{time2})', f'Load factor: ({lf[0]}-{lf[1]})')
 
-# Update line charts
+# Update histogram charts
 @app.callback(
     Output('dailydep', 'figure'),
     Output('hourlydep', 'figure'),
@@ -711,8 +776,8 @@ def update_line_chart(flightnr, dest, time_, lf):
          
         filtered_df_line = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         
-        fig_daily = drawLineChart(filtered_df_line, 'dailydep', 'FRA daily departures', 'daily')[1]
-        fig_hourly = drawLineChart(filtered_df_line, 'hourlydep', 'FRA hourly departures', 'hourly')[1]
+        fig_daily = drawHistogram(filtered_df_line, 'dailydep', 'FRA daily departures', 'daily')[1]
+        fig_hourly = drawHistogram(filtered_df_line, 'hourlydep', 'FRA hourly departures', 'hourly')[1]
         return(fig_daily, fig_hourly)
 
 
@@ -759,10 +824,9 @@ def update_bar_chart(flightnr, dest, time_, lf):
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
         filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
-        print(f'{flightnr}, {dest}, {time_}, {lf}')
         
         fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
-        fig_lf = drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Load factor')[1]
+        fig_lf = drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Cargo load factor')[1]
         return(fig_volume, fig_lf)
 
 # Update button
@@ -776,7 +840,7 @@ def update_bar_chart(flightnr, dest, time_, lf):
     prevent_initial_call = True
     )
 
-def update_filters(value1, value2):
+def update_filters(value1):
     flightfilter, destinations = None, None
     slider1, slider2 = [0,23], [0,1]
     radioItem = 'Shipments'
@@ -817,6 +881,7 @@ def update_filters(value1, value2):
 #TODO: Add options to include lay-overs as well?
 #TODO: Add plot for: departure tiem (bar chart), frequency per day (line chart), load factor (line chart?)
 #TODO: use the new index to plot frequency and load factor as bar chart
+#TODO: Add a README where the package versions of all the used packages are described, as well as a quick overview of the code.
 
 
 

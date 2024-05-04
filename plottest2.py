@@ -54,4 +54,72 @@ for day, values in final_data.items():
 
 fig.update_layout(barmode='stack')
 
+#%%
+import plotly.express as px
+
+depdata = df.drop_duplicates('uniqueflightid')['datetimeobject']
+
+type_ = 'hourly'
+
+if type_ == 'daily':
+    
+    deptimes = ['Monday', 'Tuesday', 'Wednesday', 'Thurday', 'Friday', 'Saturday', 'Sunday']
+    
+    xlabel_ = 'Day'
+    ylabel_ = 'Occurences'
+    range_ = [-0.5,6.5]
+    n_bins = 7
+    
+    depcat = [0] * 7
+    for date in depdata:
+        date_ = date.weekday()
+        depcat[date_] += 1
+    
+# elif type_ == 'hourly':
+    
+#     # deptimes = [f'{x}:00' for x in range(0,25)]
+    
+#     xlabel_ = 'Time'
+#     ylabel_ = 'Occurences'
+#     range_ = [0,25]
+#     n_bins = 25
+    
+#     x_data = [0] * len(depdata)
+
+#     for i, time_ in enumerate(depdata):
+#         x_data[i] = time_.hour
+
+elif type_ == 'hourly':
+    
+    deptimes = [f'{x}:00' for x in range(0,25)]
+    
+    xlabel_ = 'Time'
+    ylabel_ = 'Occurences'
+    range_ = [0,25]
+    n_bins = 25
+    
+    depcat = [0] * 25
+    for time in depdata:
+        time_ = time.hour
+        depcat[time_] += 1
+        
+fig = px.histogram(x = deptimes,
+                   y = depcat,
+                   nbins = n_bins,
+                   color_discrete_sequence=["#ffb500"])
+
+# fig.update_yaxes(ticklabelstep=2)
+fig.update_layout(
+   title={'text': 'test', 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
+   xaxis_tickangle = -45,
+   bargap = 0.1,
+   yaxis_title = ylabel_,
+   xaxis_title = xlabel_,
+   xaxis_range = range_,
+   template = 'plotly_dark'
+)
+
+# fig = px.histogram(x_data, nbins = 25)
+
+
 fig.write_html('./test2.html')
