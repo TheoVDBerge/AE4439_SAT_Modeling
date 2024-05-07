@@ -294,25 +294,35 @@ def drawBarChart(data_, id_, type_, title_):
         # both levels of indexes.
         unique_dates = sorted_data.index.get_level_values('date').unique()
         unique_flightnr = sorted_data.index.get_level_values('flightnr').unique()
+        unique_legs = sorted_data.index.get_level_values('leg').unique()
 
         # Rearrange the data so that it becomes a list of lists, where the list
         # has len(unique_dates) and each nested list len(unique_flightnr).
         # In other words, every list is a day of the week where all flight numbers
         # are represented. 
-        daily_data = []
-
-        for flight in unique_dates:
-            temp = []
-            for date in unique_flightnr:
-                try:
-                    temp.append(sorted_data[flight][date])
-                except:
-                    # In case of flight not being operated on a day of the week,
-                    # a lf of 0 is added. This is required to keep track of the
-                    # different flight numbers whilst plotting.
-                    temp.append(0)
-            
-            daily_data.append(temp)
+        
+        test = {
+        
+        
+        # daily_data = []
+        
+        
+        # # Completely re-do this in a dictionary, because I am making a dictionary out of it anyway later
+        # for date in unique_dates:
+        #     temp = []
+        #     for flight in unique_flightnr:
+        #             try:
+        #                 temp2 = []
+        #                 for leg in list(sorted_data[date][flight].keys()):
+        #                     temp2.append(sorted_data[date][flight][leg])
+        #                 temp.append(temp2)
+        #             except:
+        #                 # In case of flight not being operated on a day of the week,
+        #                 # a lf of 0 is added. This is required to keep track of the
+        #                 # different flight numbers whilst plotting.
+        #                 temp.append(0)
+                
+        #             daily_data.append(temp)
             
         # Create a final dictionary that will ease the plotting
         final_data = {getDayOfWeek(unique_dates[i])[1]: daily_data[i] for i in range(len(unique_dates))}
