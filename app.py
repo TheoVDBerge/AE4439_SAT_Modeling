@@ -9,12 +9,12 @@ from dash.dependencies import Input
 from dash.dependencies import Output
 import dash_bootstrap_components as dbc
 import plotly.express as px
-from main_data import df
+from main_data import df, arrangeAirports
 import osmnx as ox
 print('Imported main_data.py')
 from airport_data import df_airport
 print('Imported airport data')
-from helper_functions import getFlightRoutes, getHHMM, getDayOfWeek
+from helper_functions import getFlightRoutes, getHHMM, getDayOfWeek, getPayload, getDistance
 print('Imported helper_functions.py')
 #%%
 print('Imported all requirements')
@@ -280,67 +280,28 @@ def drawBarChart(data_, id_, type_, title_):
         fig.update_layout(
             title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
             template = 'plotly_dark',
-            xaxis_tickangle = -45,
+            xaxis_tickangle = -90,
             )
 
     elif type_ == 'lf':
+        #TODO: Comment code still
+        #TOOD: Fix the load factor slider not working on this bar chart, due to the slider only filtering on individual flights, and not legs
         
-        # Extract the required load factors, based on date (primary)
-        # and flightnr (secondary). Then, the load factor is calculated
-        # for each individual flight per day.
-        sorted_data = data_.groupby(['date', 'flightnr'])['lf'].sum()
+        df_lf = getLFFlights2(data_)
         
-        # Due to the double indexing, I extract the unique values of 
-        # both levels of indexes.
-        unique_dates = sorted_data.index.get_level_values('date').unique()
-        unique_flightnr = sorted_data.index.get_level_values('flightnr').unique()
-        unique_legs = sorted_data.index.get_level_values('leg').unique()
-
-        # Rearrange the data so that it becomes a list of lists, where the list
-        # has len(unique_dates) and each nested list len(unique_flightnr).
-        # In other words, every list is a day of the week where all flight numbers
-        # are represented. 
-        
-        test = {
-        
-        
-        # daily_data = []
-        
-        
-        # # Completely re-do this in a dictionary, because I am making a dictionary out of it anyway later
-        # for date in unique_dates:
-        #     temp = []
-        #     for flight in unique_flightnr:
-        #             try:
-        #                 temp2 = []
-        #                 for leg in list(sorted_data[date][flight].keys()):
-        #                     temp2.append(sorted_data[date][flight][leg])
-        #                 temp.append(temp2)
-        #             except:
-        #                 # In case of flight not being operated on a day of the week,
-        #                 # a lf of 0 is added. This is required to keep track of the
-        #                 # different flight numbers whilst plotting.
-        #                 temp.append(0)
-                
-        #             daily_data.append(temp)
-            
-        # Create a final dictionary that will ease the plotting
-        final_data = {getDayOfWeek(unique_dates[i])[1]: daily_data[i] for i in range(len(unique_dates))}
-            
-        # Create a figure object
-        fig = go.Figure()
-
-        # Loop through the final_data to create a bar for each day of the week
-        for day, values in final_data.items():
-            fig.add_trace(go.Bar(name=day, x=unique_flightnr, y=values))
-
-        fig.update_layout(barmode='stack')
+        fig = px.bar(df_lf, x='Flight number', y='LoadFactor', color='Day',
+                     hover_data=['legs'], barmode='stack',
+                     title="Load Factor by Flight Number Across Different Days",
+                     labels={"FlightNumber": "Flight number", "LoadFactor": "Load factor"},
+                     )
     
-    fig.update_layout(
-        title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
-       template = 'plotly_dark',
-       xaxis_tickangle = -45,
-        )
+        fig.update_layout(
+            title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
+            xaxis = {'categoryorder': 'total descending'},
+            yaxis_title = 'Load factor',
+            template = 'plotly_dark',
+            xaxis_tickangle = -90,
+            )
     return(html.Div([
         dbc.Card(
             dbc.CardBody([dcc.Graph(id = id_,
@@ -473,6 +434,37 @@ def getLFFlights(data_, ll, ul):
     flightnr_ = [x.split('-')[0] for x in filtered_LF.index]
     return(flightnr_)
 
+def getLFFlights2(data_):
+    sorted_data = data_.groupby(['date', 'flightnr', 'leg'])['totalWeight'].sum()
+
+    unique_dates = sorted_data.index.get_level_values('date').unique()
+    
+    days = []
+    dates = []
+    flightnr = []
+    legs = []
+    load_factors = []
+
+    for day in unique_dates:
+        for flight in sorted_data[day].index.get_level_values('flightnr').unique():
+            for num, leg in enumerate(arrangeAirports(sorted_data[day].loc[flight].index.get_level_values('leg'))):
+                days.append(getDayOfWeek(day)[1])
+                dates.append(day)
+                flightnr.append(flight)
+                legs.append(leg)
+                load_factors.append(round((sorted_data[day][flight].iloc[num:].sum())/getPayload(getDistance(df_airport, leg)), 2))
+                
+    df_lf = pd.DataFrame({
+        'Day': days,
+        'Date': dates,
+        'Flight number': flightnr,
+        'legs': legs,
+        'LoadFactor': load_factors
+    })
+       
+    return(df_lf)
+
+# For the table to show only flights, and not only shipments
 def getFlightDF(data_):
     sorted_data = data_.groupby(['uniqueflightid'])[['numpieces', 'totalWeight', 'lf']].sum()
     new_df = data_.drop_duplicates('uniqueflightid')
@@ -579,8 +571,8 @@ app.layout = html.Div(children=[
                                     dbc.Col([
                                         html.H6('Data options'),
                                         dcc.RadioItems(id = 'dataSelection',
-                                            options=['Shipments', 'Flights'],
-                                            value='Shipments',
+                                            options=['Flights', 'Shipments'],
+                                            value='Flights',
                                             inline=True,
                                             inputStyle={"margin-right": "10px",
                                                         "margin-left": "10px"},
@@ -833,11 +825,24 @@ def update_bar_chart(flightnr, dest, time_, lf):
     else:
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-         
-        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        print(flightnr)
+        print(dest)
+        print(time_)
+        print(lf)
         
-        fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
-        fig_lf = drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Cargo load factor')[1]
+        df_lf = getLFFlights2(df)
+        
+        result_df = df_lf[(df_lf['LoadFactor'] > lf[0]) & (df_lf['LoadFactor'] < lf[1])]
+        #TODO: Fix this still so it filters the right load factors still for each leg, that it filters for a value in a single row, but two columns
+        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) )]
+        # Waarschijnlijk gaat hier iets fout met het filteren door de lijst ofzo
+        # The problem arises when load factors are calculated by taking sequential flight and then taking the respective load factor, 
+        # however when the filter is applied, it filters on the cumulative load factor, but due to the filtered dataFrame, it has no
+        # sequential flights to show and hence it shows only the (correct) load factor for that single leg.
+        filtered_df_bar2 = filtered_df_bar[((df.flightnr.isin(result_df['Flight number'])) & (df.leg.isin(result_df['legs'])) & (df.date.isin(result_df['Date'])) )]
+        # filtered_df_bar3 = filtered_df_bar[(filtered_df_bar.date.isin(result_df['Date'])) & (filtered_df_bar.flightnr.isin(result_df['Flight number']))]
+        fig_volume = drawBarChart(filtered_df_bar2, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
+        fig_lf = drawBarChart(filtered_df_bar2, 'TotalLF', 'lf', 'Cargo load factor')[1]
         return(fig_volume, fig_lf)
 
 # Update button

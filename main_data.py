@@ -48,7 +48,7 @@ def arrangeAirports(flights):
     while len(result) < len(flights):
         next_airport = f'{current_airport}-{flight_map[current_airport]}'
         result.append(next_airport)
-        current_location = flight_map[current_airport]
+        current_airport = flight_map[current_airport]
         
     return(result)
 
@@ -101,7 +101,7 @@ datafiles = os.listdir('./base')
 
 testfiles = ['LH8474-27NOV15-FRA-HKG.schedule.yaml', 'LH8044-28NOV15-FRA-ORD.schedule.yaml', 'LH8048-27NOV15-FRA-LAX.schedule.yaml']
 
-for idx, i in enumerate(datafiles[39:50]):
+for idx, i in enumerate(datafiles):
 # for idx, i in enumerate(testfiles[-1]):
     with open(f'./base/{i}', 'r') as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
