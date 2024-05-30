@@ -287,9 +287,9 @@ def drawBarChart(data_, id_, type_, title_):
         #TODO: Comment code still
         #TOOD: Fix the load factor slider not working on this bar chart, due to the slider only filtering on individual flights, and not legs
         
-        df_lf = getLFFlights2(data_)
+        # df_lf = getLFFlights2(data_)
         
-        fig = px.bar(df_lf, x='Flight number', y='LoadFactor', color='Day',
+        fig = px.bar(data_, x='Flight number', y='LoadFactor', color='Day',
                      hover_data=['legs'], barmode='stack',
                      title="Load Factor by Flight Number Across Different Days",
                      labels={"FlightNumber": "Flight number", "LoadFactor": "Load factor"},
@@ -473,6 +473,18 @@ def getFlightDF(data_):
         new_df.loc[i, ['specials']] = 'N/A'
     return(new_df)
 
+def getDangerousGoods():
+    IATAcodes = []
+    for i in df.specials.unique():
+        try:
+            if len(i.split()) != 0:
+                for j in i.split():
+                    IATAcodes.append(j)
+                
+        except:
+            pass
+    return(IATAcodes)
+
 # def flatten(input_):
 #     temp = []
 #     for lst in input_:
@@ -566,7 +578,7 @@ app.layout = html.Div(children=[
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Dangerous goods'),
-                                        drawDropdownWithoutCard(list(df.specials.unique()), 'specials_filter', 'Select an option', '100%'),
+                                        drawDropdownWithoutCard(getDangerousGoods(), 'specials_filter', 'Select an option', '100%'),
                                     ], width = 6),
                                     dbc.Col([
                                         html.H6('Data options'),
@@ -636,7 +648,7 @@ app.layout = html.Div(children=[
                 dbc.Col([
                     drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[0]]),
                 dbc.Col([
-                    drawBarChart(df, 'TotalLF', 'lf', 'Load factor')[0]])
+                    drawBarChart(getLFFlights2(df), 'TotalLF', 'lf', 'Load factor')[0]])
                 ]),
             html.Br(),
             # Data table
@@ -814,10 +826,11 @@ def update_line_chart(flightnr, dest, time_, lf):
     Output('TotalLF', 'figure'),
     Input('flightnr_filter', 'value'),
     Input('dest_filter', 'value'),
+    Input('specials_filter', 'value'),
     Input('slider-dep', 'value'),
     Input('slider-lf', 'value')
           )
-def update_bar_chart(flightnr, dest, time_, lf):
+def update_bar_chart(flightnr, dest, IATA, time_, lf):
     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
         fig_volume = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
         fig_lf = drawBarChart(df, 'TotalLF', 'lf', 'Load factor')[1]
@@ -833,16 +846,28 @@ def update_bar_chart(flightnr, dest, time_, lf):
         df_lf = getLFFlights2(df)
         
         result_df = df_lf[(df_lf['LoadFactor'] > lf[0]) & (df_lf['LoadFactor'] < lf[1])]
+        
+        time_flightnr = df[df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time())].flightnr.unique()
+        dest_flightnr = df[df.dest.isin(dest)].flightnr.unique()
+        # IATA_flightnr = df[df.specials.isin(IATA)].flightnr.unique()
+        
+        result_df2 = result_df[result_df['Flight number'].isin(flightnr) & result_df['Flight number'].isin(time_flightnr) & result_df['Flight number'].isin(dest_flightnr)]
+        
+        
         #TODO: Fix this still so it filters the right load factors still for each leg, that it filters for a value in a single row, but two columns
-        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) )]
+        
+        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        
         # Waarschijnlijk gaat hier iets fout met het filteren door de lijst ofzo
         # The problem arises when load factors are calculated by taking sequential flight and then taking the respective load factor, 
         # however when the filter is applied, it filters on the cumulative load factor, but due to the filtered dataFrame, it has no
         # sequential flights to show and hence it shows only the (correct) load factor for that single leg.
-        filtered_df_bar2 = filtered_df_bar[((df.flightnr.isin(result_df['Flight number'])) & (df.leg.isin(result_df['legs'])) & (df.date.isin(result_df['Date'])) )]
+        
+        # filtered_df_bar2 = filtered_df_bar[((filtered_df_bar.flightnr.isin(result_df['Flight number'])) & (filtered_df_bar.leg.isin(result_df['legs'])) & (filtered_df_bar.date.isin(result_df['Date'])) )]
+       
         # filtered_df_bar3 = filtered_df_bar[(filtered_df_bar.date.isin(result_df['Date'])) & (filtered_df_bar.flightnr.isin(result_df['Flight number']))]
-        fig_volume = drawBarChart(filtered_df_bar2, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
-        fig_lf = drawBarChart(filtered_df_bar2, 'TotalLF', 'lf', 'Cargo load factor')[1]
+        fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
+        fig_lf = drawBarChart(result_df2, 'TotalLF', 'lf', 'Cargo load factor')[1]
         return(fig_volume, fig_lf)
 
 # Update button

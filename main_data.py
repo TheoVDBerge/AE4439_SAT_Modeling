@@ -88,6 +88,7 @@ def processData(data):
                 'totalWeight': shipment['weight'] * shipment['amount'], 
                 'leg': getLeg(legs,flightinfo[-1]), # This adds the actual leg (so from the airport prior to unloading to unloading airport). This will be useful later for getting the right payload
                 'specials': shipment['specials'] if 'specials' in shipment.keys() else 0,
+                # 'specials': [x for x in shipment['specials'].split()] if 'specials' in shipment.keys() else 0,
                 'lf': round((shipment['weight'] * shipment['amount'])/maxPayloadMD11,4)} # Adjust this still for payload, maybe btter in app.py
     return()
 
@@ -101,7 +102,7 @@ datafiles = os.listdir('./base')
 
 testfiles = ['LH8474-27NOV15-FRA-HKG.schedule.yaml', 'LH8044-28NOV15-FRA-ORD.schedule.yaml', 'LH8048-27NOV15-FRA-LAX.schedule.yaml']
 
-for idx, i in enumerate(datafiles):
+for idx, i in enumerate(datafiles[0:15]):
 # for idx, i in enumerate(testfiles[-1]):
     with open(f'./base/{i}', 'r') as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
