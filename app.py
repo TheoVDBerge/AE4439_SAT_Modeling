@@ -371,6 +371,7 @@ def drawHistogram(data_, id_, title_, type_):
             dbc.CardBody([dcc.Graph(id = id_,
                       figure = fig)
                 ])
+
             )
         ]), fig
         )
@@ -395,7 +396,9 @@ def getLFFlights2(data_):
     flightnr = []
     legs = []
     load_factors = []
-
+    
+    # Create a dictionary that re-arranges flight legs with their respective (correct!) load factors. This was a long-time bug that I was
+    # able to fix. Not 100% sure anymore why I have two functions, but it works like this.
     for day in unique_dates:
         for flight in sorted_data[day].index.get_level_values('flightnr').unique():
             for num, leg in enumerate(arrangeAirports(sorted_data[day].loc[flight].index.get_level_values('leg'))):
@@ -415,7 +418,7 @@ def getLFFlights2(data_):
        
     return(df_lf)
 
-# For the table to show only flights, and not only shipments
+# For the table to show only flights, and not only shipments for greater clarity.
 def getFlightDF(data_):
     sorted_data = data_.groupby(['uniqueflightid'])[['numpieces', 'totalWeight', 'lf']].sum()
     new_df = data_.drop_duplicates('uniqueflightid')
@@ -424,6 +427,7 @@ def getFlightDF(data_):
         new_df.loc[i, ['specials']] = 'N/A'
     return(new_df)
 
+# Generate a list of dangerous goods for the drop down box.
 def getDangerousGoods():
     IATAcodes = []
     for i in df.specials.unique():
@@ -431,25 +435,15 @@ def getDangerousGoods():
             if len(i.split()) != 0:
                 for j in i.split():
                     IATAcodes.append(j)
-                
         except:
             pass
     return(IATAcodes)
 
 #%%
-unique_flights = df.uniqueflightid.unique()
-test = df.drop_duplicates('uniqueflightid')['std']
-
-deptimes = [0] * 25
-for time in test:
-    time_ = int(time[0:2])
-    deptimes[time_] += 1
-
-#%%
-
 
 # Main website lay-out
 app.layout = html.Div(children=[
+    
     # Main body of the website, this card holds everything
     dbc.Card(
         dbc.CardBody([
@@ -471,21 +465,21 @@ app.layout = html.Div(children=[
                     html.Div([
                         dbc.Card(
                             dbc.CardBody([
+                                
+                                # Destination and flight number filter
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Destination'),
                                         drawDropdownWithoutCard(getAirportNames(list(df.dest.unique()))[0], 'dest_filter', 'Select an airport', '100%'),
                                     ], width=6),
-                                    # dbc.Col([
-                                    #     html.H6('Origin'),
-                                    #     drawDropdownWithoutCard(list(df.origin.unique()), 'origin_filter', 'Select an airport', '100%'),
-                                    # ], width=4),
                                     dbc.Col([
                                         html.H6('Flight number'),
                                         drawDropdownWithoutCard(list(df.flightnr.unique()), 'flightnr_filter', 'Select a flight number', '100%'),
                                     ], width=6),
                                 ]),
                             html.Br(),
+                            
+                            # Dangerous goods filter, radio button and reset button.
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Dangerous goods'),
@@ -509,6 +503,8 @@ app.layout = html.Div(children=[
                                 ]),
                             html.Br(),
                             html.Br(),
+                            
+                            # Sliders for departure time and load factors
                                 dbc.Row([
                                     dbc.Col([
                                         html.H6('Departure time from FRA (00:00-23:00)', id = 'H6-dep'),
@@ -527,6 +523,8 @@ app.layout = html.Div(children=[
                 ], width=5),
             ], align='center'), 
             html.Br(),
+            
+            # Draw first two histograms showing daily and hourly departures.
             dbc.Row([
                 dbc.Col([
                     drawHistogram(df, 'dailydep', 'FRA daily departures', 'daily')[0]
@@ -536,6 +534,8 @@ app.layout = html.Div(children=[
                     ])
                 ]),
             html.Br(),
+            
+            # Draw histogram with total volumes and load factor per leg
             dbc.Row([
                 dbc.Col([
                     drawBarChart(df, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[0]]),
@@ -543,7 +543,8 @@ app.layout = html.Div(children=[
                     drawBarChart(getLFFlights2(df), 'TotalLF', 'lf', 'Load factor')[0]])
                 ]),
             html.Br(),
-            # Data table
+            
+            # Draw data table
             dbc.Row([
                 dbc.Col([
                     drawTable(df2, 'table1')])
@@ -552,9 +553,8 @@ app.layout = html.Div(children=[
     )
 ])
 
-# html.Img(src = './assets/IMG_0115.JPEG')
 
-# Call backs
+### Call backs
 
 # Update table
 @app.callback(
@@ -578,8 +578,9 @@ def update_table(flightnr, dest, time_, lf, type_):
     else:
         flightnr = list(df_table['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df_table['dest'].unique()) if dest in [None, []] else dest
+        
         # Filter flight number, destination, departure time, load factor
-        filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights2(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
+        filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         data = filtered_df_table.to_dict('records')
         return data
 
@@ -599,7 +600,7 @@ def update_flight_route(flightnr, dest, time_, lf):
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        filtered_df_map = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights2(df2, lf[0], lf[1])))]
+        filtered_df_map = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         updated_flight_routes = getFlightRoutes(filtered_df_map)
         return (getmap('map', updated_flight_routes)[1])
 
@@ -633,7 +634,7 @@ def update_line_chart(flightnr, dest, time_, lf):
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        filtered_df_line = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights2(df2, lf[0], lf[1])))]
+        filtered_df_line = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         
         fig_daily = drawHistogram(filtered_df_line, 'dailydep', 'FRA daily departures', 'daily')[1]
         fig_hourly = drawHistogram(filtered_df_line, 'hourlydep', 'FRA hourly departures', 'hourly')[1]
@@ -671,8 +672,7 @@ def update_bar_chart(flightnr, dest, IATA, time_, lf):
         
         result_df2 = result_df[result_df['Flight number'].isin(flightnr) & result_df['Flight number'].isin(time_flightnr) & result_df['Flight number'].isin(dest_flightnr)]
         
-        
-        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights2(df2, lf[0], lf[1])))]
+        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         
         fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
         fig_lf = drawBarChart(result_df2, 'TotalLF', 'lf', 'Cargo load factor')[1]
@@ -696,6 +696,7 @@ def update_filters(value1):
     return(flightfilter, destinations, slider1, slider2, radioItem)
 
 
+# Run local-host
 if __name__ == '__main__':
     app.run_server(debug=True)
    
