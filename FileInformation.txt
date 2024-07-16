@@ -1,0 +1,19 @@
+### File information
+
+In this document I will give a short description what can be found in each file.
+
+# app.py 
+
+In app.py the main application can be found along with the entire Dash framework. Additionally, some data filtering is performed here.
+
+# main_data.py
+
+In main_data.py the raw data is imported and processed. app.py important the Pandas DataFrame from main_data.py.
+
+# airport_data.py
+
+airport_data.py creates a DataFrame from all IATA codes with relevant information, such as IATA code, name, and lat/lon data. The data is taken from a public GitHub repository.
+
+# helper_function.py
+
+Here, some functions are stored that help with performing certain tasks, but are moved to a separate file as they are not considered to be part of the core. This helps reduce cluttering of the core files.

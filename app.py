@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from dash import dash_table as dt
-from dash import Dash, dcc, html, dash_table
+from dash import Dash, dcc, html
 from dash.dependencies import Input
 from dash.dependencies import Output
 import dash_bootstrap_components as dbc
