@@ -37,29 +37,32 @@ def getDayOfWeek(date_string):
 
 def getPayload(range_):
     
-    # range_ = range_ / 1.852
-    
     def pounds2kg(lbs):
         return(lbs*0.45359237)
     
     # Takes range in nm, returns payload in kg
     if range_ <= 3_890:
         return(pounds2kg(174_200))
+    
     elif 3_900 < range_ <= 6_600:
-        print('test')
         slope = (194_500 - 105_000)/(6_600 - 3_900)
         return(pounds2kg(194_500 - (slope)*(range_ - 3_900)))
+    
     elif 6_600 < range_ <= 8_200:
         slope = (105_000 - 0)/(8_200 - 6_600)
         return(pounds2kg(105_000 - (slope)*(range_ - 6_600)))
+    
     else:
         print('Out of range!')
         return(None)
 
-def getDistance(airport1, airport2): 
+def getDistance(data_, leg): 
+    
+    airport1, airport2 = leg.split('-')[0], leg.split('-')[1]
+    
     # Returns great circle distance in nm
-    lat1, lon1 = df_airport[df_airport.iata == airport1].lat.iloc[0], df_airport[df_airport.iata == airport1].lon.iloc[0]
-    lat2, lon2 = df_airport[df_airport.iata == airport2].lat.iloc[0], df_airport[df_airport.iata == airport2].lon.iloc[0]
+    lat1, lon1 = data_[data_.iata == airport1].lat.iloc[0], data_[data_.iata == airport1].lon.iloc[0]
+    lat2, lon2 = data_[data_.iata == airport2].lat.iloc[0], data_[data_.iata == airport2].lon.iloc[0]
 
     return(ox.distance.great_circle(
         lat2, lon2, lat1, lon1,

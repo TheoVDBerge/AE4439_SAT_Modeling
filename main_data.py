@@ -7,6 +7,8 @@ from datetime import date, time
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+from airport_data import df_airport
+from helper_functions import getPayload, getDistance
 
 #%%
 def date2date(date_):
@@ -34,10 +36,34 @@ def flatten(input_):
             temp.append()
     return(temp)
 
+def arrangeAirports(flights):
+    
+    flight_map = {flight.split('-')[0]: flight.split('-')[1] for flight in flights}
+    
+    start = f'FRA-{flight_map["FRA"]}'
+    
+    result = [start]
+    current_airport = start.split('-')[1]
+    
+    while len(result) < len(flights):
+        next_airport = f'{current_airport}-{flight_map[current_airport]}'
+        result.append(next_airport)
+        current_airport = flight_map[current_airport]
+        
+    return(result)
+
+def getLeg(legs, airport):
+    for i, idx in enumerate(legs):
+        if airport in idx.split('-')[1]:
+            return(idx)    
+
+# test = data['flights']['LH8272-25NOV15-FRA-SCL']['legs'].keys()
+
 def processData(data):
     maxPayloadMD11 = 90_000 # kg
     segments = list(data['segments'])
-    legs = list((data['flights'][list(data['flights'].keys())[0]]['legs']).keys())
+    # legs = list((data['flights'][list(data['flights'].keys())[0]]['legs']).keys())
+    legs = [f'{i.split("-")[-2]}-{i.split("-")[-1]}' for i in data['flights'][list(data['flights'].keys())[0]]['legs'].keys()]
     time_ = unix2norm(data['flights'][list(data['flights'].keys())[0]]['std_timestamp'])
     for idy, j in enumerate(segments):
         for i in range(len((data['segments'][j]['shipments'].keys()))):
@@ -54,14 +80,16 @@ def processData(data):
                 'origin': flightinfo[2],
                 'dest': flightinfo[3],
                 # 'route':flatten([[x.split('-')[2], x.split('-')[3]] for x in legs]),
-                'route':[[x.split('-')[2], x.split('-')[3]] for x in legs],
+                'route':[[x.split('-')[0], x.split('-')[1]] for x in legs],
+                # 'route':[[x] for x in legs],
+                # 'route': arrangeAirports(legs),
                 'numpieces': shipment['amount'], # the amount of this item in each shipment
                 'weight_1_item': shipment['weight'],
                 'totalWeight': shipment['weight'] * shipment['amount'], 
-                'uldtype': None,
-                'uldnr': None,
+                'leg': getLeg(legs,flightinfo[-1]), # This adds the actual leg (so from the airport prior to unloading to unloading airport). This will be useful later for getting the right payload
                 'specials': shipment['specials'] if 'specials' in shipment.keys() else 0,
-                'lf': round((shipment['weight'] * shipment['amount'])/maxPayloadMD11,4)}
+                # 'specials': [x for x in shipment['specials'].split()] if 'specials' in shipment.keys() else 0,
+                'lf': round((shipment['weight'] * shipment['amount'])/maxPayloadMD11,4)} # Adjust this still for payload, maybe btter in app.py
     return()
 
 # testdata = {'test':{'value1': 0,
@@ -74,7 +102,7 @@ datafiles = os.listdir('./base')
 
 testfiles = ['LH8474-27NOV15-FRA-HKG.schedule.yaml', 'LH8044-28NOV15-FRA-ORD.schedule.yaml', 'LH8048-27NOV15-FRA-LAX.schedule.yaml']
 
-for idx, i in enumerate(datafiles[0:20]):
+for idx, i in enumerate(datafiles[0:15]):
 # for idx, i in enumerate(testfiles[-1]):
     with open(f'./base/{i}', 'r') as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
