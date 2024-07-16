@@ -10,7 +10,6 @@ from dash.dependencies import Output
 import dash_bootstrap_components as dbc
 import plotly.express as px
 from main_data import df, arrangeAirports
-import osmnx as ox
 print('Imported main_data.py')
 from airport_data import df_airport
 print('Imported airport data')
@@ -25,25 +24,15 @@ print('Initialised flight routes')
 
 # Initialize the app
 app = Dash(__name__)
-# app = Dash(__name__, external_stylesheets=[dbc.themes.SLATE])
-# app = Dash(__name__, external_stylesheets=[dbc.themes.LUX])
-# app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 app.title = 'SAT modeling project'
 
 print('Initialised the web-app')
 
-"""
-To do:
-    - Filter opties maken
-    - Functies maken om data te filteren
-    - Flight routes filteren in functie maken en dan helper_functions.py maken
-    - ?
-"""
-
-# TODO: Fix the route column breaking the code
-# Flattening the list will be done here and not in the main_data, as it will break the getmap function and i don't feel like fixing it
+# Flattening the list will be done here and not in the main_data, as it will break the getmap function
 df2 = df.drop(columns=['route'])
 
+
+# Generate airport names (IATA code + name) for the dropdowns
 def getAirportNames(airports):
     temp_dropdown = []
     temp = []
@@ -107,10 +96,6 @@ def getmap(id_, flight_routes):
             #bgcolor='#272b30',
         ),
         template = 'plotly_dark'
-        # plot_bgcolor='black',
-        # paper_bgcolor='black'
-        # width = 1000,
-        # height = 600
     )
     return (html.Div([
         dbc.Card(
@@ -122,6 +107,7 @@ def getmap(id_, flight_routes):
     ]), fig)
 
 
+# Draw a drop-down menu without the card body
 def drawDropdownWithoutCard(options_, id_, placeholder_, width_):
     # Options must be a list
     return(dcc.Dropdown(
@@ -130,10 +116,9 @@ def drawDropdownWithoutCard(options_, id_, placeholder_, width_):
                     placeholder = placeholder_,
                     multi = True,
                     style = {'width': width_})                  
-                    
         )
 
-
+# Draw a drop-down menu with the card body
 def drawDropdown(options_, id_, placeholder_, width_):
     # Options must be a list
     return(html.Div([
@@ -145,23 +130,7 @@ def drawDropdown(options_, id_, placeholder_, width_):
             )])
         )
 
-# def drawDropdown(options_, id_, placeholder_, width_):
-#     # Options must be a list
-#     return(html.Div([
-#         dbc.Card(
-#             dbc.CardBody([
-#                 dcc.Dropdown(
-#                     id = id_,
-#                     options = options_,
-#                     placeholder = placeholder_,
-#                     multi = True,
-#                     style = {'width': width_}),
-                    
-#                     ]),
-#             )])
-#         )
-
-
+# Draw the table
 def drawTable(data_, id_):
     table = dt.DataTable(
         id = id_,
@@ -191,7 +160,7 @@ def drawTable(data_, id_):
         ],
 
         # Set the table to be interactive
-        filter_action="native",  # Enable filtering
+        filter_action="native",    # Enable filtering
         sort_action = "native",    # Enable sorting
         page_action = "native",    # Enable pagination
         page_size = 50             # Number of rows per page
@@ -208,29 +177,7 @@ def drawTable(data_, id_):
         
         )
 
-def drawDonutChart(data_, id_, title_):
-    fig = go.Figure(
-        data = go.Pie(
-            labels = getAirportNames(list(df.dest.unique()))[1],
-            values = [(df[df.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(df.dest.unique())],
-            hole = 0.4,
-            textinfo = 'label+percent',
-            insidetextorientation = 'radial'))
-    fig.update_layout(
-        annotations=[dict(text=f'  Total: <br> {df.totalWeight.sum()/1000}', x=0.5, y=0.5, font_size=15, showarrow=False, align = 'center')],
-       title={'text': title_, 'x': 0.5, 'xanchor': 'center', 'y': 0.95, 'yanchor': 'top'},
-       template = 'plotly_dark'
-   )
-    return(html.Div([
-        dbc.Card(
-            dbc.CardBody([dcc.Graph(id = id_,
-                      figure = fig)
-                ])
-            
-            )
-        ])
-        ,fig)
-
+# Draw the filter slider without the card body
 def drawRangeSliderWithoutCard(data_, id_, min_, max_, ds_label, ds_mark, datatype):
     marks_ = {}      
     if datatype == 'time':
@@ -244,13 +191,13 @@ def drawRangeSliderWithoutCard(data_, id_, min_, max_, ds_label, ds_mark, dataty
         value_ = [0, 1]
         
     return(dcc.RangeSlider(min_, max_, ds_mark,
-    # TODO: add different variable for ds for marks and ds for labels
         marks = marks_,
         value = value_,
         id = id_,
         allowCross = False
         ), marks_)
 
+# Draw the filter slider with the card body
 def drawRangeSlider(data_, id_, min_, max_, ds, datatype):
     return(html.Div([
         dbc.Card(
@@ -261,9 +208,10 @@ def drawRangeSlider(data_, id_, min_, max_, ds, datatype):
         ])
         )
 
+# Draw a bar chart
 def drawBarChart(data_, id_, type_, title_):
+    # if-statement to re-use the same function multiple times
     if type_ == 'volume':
-        #TODO: Add percentages to the labels
         # Create a list of lists with the required data [[Destination], [Volume]]
         data__ = [list(data_.dest.unique()), [(data_[data_.dest.isin([x])]['totalWeight'].sum()/1000) for x in list(data_.dest.unique())]]
         
@@ -283,12 +231,7 @@ def drawBarChart(data_, id_, type_, title_):
             xaxis_tickangle = -90,
             )
 
-    elif type_ == 'lf':
-        #TODO: Comment code still
-        #TOOD: Fix the load factor slider not working on this bar chart, due to the slider only filtering on individual flights, and not legs
-        
-        # df_lf = getLFFlights2(data_)
-        
+    elif type_ == 'lf':        
         fig = px.bar(data_, x='Flight number', y='LoadFactor', color='Day',
                      hover_data=['legs'], barmode='stack',
                      title="Load Factor by Flight Number Across Different Days",
@@ -302,20 +245,25 @@ def drawBarChart(data_, id_, type_, title_):
             template = 'plotly_dark',
             xaxis_tickangle = -90,
             )
+    # Please note that in most instances where a figure/graph is being generated, two elements are being returned.
+    # First, the entire figure + card body is being returned - this is for the initial boot-up. Secondly, only the 'figure' element
+    # is being returned. This is used by the call-backs, as a figure (fig element) needs to be used as output for the callback, hence
+    # without the card body elements.
     return(html.Div([
         dbc.Card(
             dbc.CardBody([dcc.Graph(id = id_,
                       figure = fig)
                 ])
-            
             )
         ])
         , fig)
 
+# Draw a line chart
 def drawLineChart(data_, id_, title_, type_):
     
     depdata = data_.drop_duplicates('uniqueflightid')['datetimeobject']
     
+    # If-statements to allow multiple uses of the same function.
     if type_ == 'daily':
         
         deptimes = ['Monday', 'Tuesday', 'Wednesday', 'Thurday', 'Friday', 'Saturday', 'Sunday']
@@ -323,6 +271,7 @@ def drawLineChart(data_, id_, title_, type_):
         xlabel_ = 'Day'
         ylabel_ = 'Occurences'
         
+        # Generate labels for the x-axis
         depcat = [0] * 7
         for date in depdata:
             date_ = date.weekday()
@@ -335,6 +284,7 @@ def drawLineChart(data_, id_, title_, type_):
         xlabel_ = 'Time'
         ylabel_ = 'Occurences'
         
+        # Generate labels for the x-axis
         depcat = [0] * 25
         for time in depdata:
             time_ = time.hour
@@ -354,6 +304,7 @@ def drawLineChart(data_, id_, title_, type_):
        template = 'plotly_dark'
     )
     
+    # Once again, two elements are being returned here - as has been discussed above.
     return(html.Div([
         dbc.Card(
             dbc.CardBody([dcc.Graph(id = id_,
@@ -485,35 +436,6 @@ def getDangerousGoods():
             pass
     return(IATAcodes)
 
-# def flatten(input_):
-#     temp = []
-#     for lst in input_:
-#         if isinstance(lst, list):
-#             for nested_list in lst:
-#                 temp.append(nested_list)
-#         else:
-#             temp.append()
-#     return(temp)
-
-# def flattenRoute(data_):
-    
-#     def removeDuplicateStrings(input_):
-#         seen = set()
-#         result = []
-#         for item in flatten(input_):
-#             if item not in seen:
-#                 seen.add(item)
-#                 result.append(item)
-    
-#     new_df = data_
-#     for i, j in zip(data_.index, data_.route):
-#         new_df.loc[i, ['route']] = removeDuplicateStrings(j)
-        
-#     return(new_df)
-
-
-test = getFlightDF(df)
-
 #%%
 unique_flights = df.uniqueflightid.unique()
 test = df.drop_duplicates('uniqueflightid')['std']
@@ -527,7 +449,6 @@ for time in test:
 
 
 # Main website lay-out
-# app.layout = html.Div(style={'width':'80%', 'margin':'auto'}, children=[
 app.layout = html.Div(children=[
     # Main body of the website, this card holds everything
     dbc.Card(
@@ -546,16 +467,6 @@ app.layout = html.Div(children=[
                     getmap('map', flight_routes)[0]
                 ], width=7),
                 # This column/card holds all filter options
-                # dbc.Col([
-                #     dbc.Col([
-                #         html.H6('Flight number'),
-                #         drawDropdown(list(df.flightnr.unique()),'flightnr_filter', 'Select a flight number')
-                #         ]),
-                #     dbc.Col([
-                #         html.H6('Origin'),
-                #         drawDropdown(list(df.origin.unique()), 'origin_filter', 'Select an airport')
-                #         ])
-                # ], width=5)
                 dbc.Col([
                     html.Div([
                         dbc.Card(
@@ -614,29 +525,10 @@ app.layout = html.Div(children=[
                         )
                     ])
                 ], width=5),
-            ], align='center'),
-            #     dbc.Col([
-            #         dbc.Col([
-            #             html.H6('Flight number'),
-            #             html.Div([
-            #                 dbc.Card(
-            #                     dbc.CardBody([
-            #                         drawDropdownWithoutCard(list(df.flightnr.unique()), 'flightnr_filter', 'Select a flight number'),
-                                        
-            #                             ]),
-            #                     )]),
-            #             # drawDropdown(list(df.flightnr.unique()),'flightnr_filter', 'Select a flight number')
-            #             ]),
-            #         dbc.Col([
-            #             html.H6('Origin'),
-            #             drawDropdown(list(df.origin.unique()), 'origin_filter', 'Select an airport')
-            #             ])
-            #     ], width=5),
-            # ], align='center'), 
+            ], align='center'), 
             html.Br(),
             dbc.Row([
                 dbc.Col([
-                    # drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[0]]),
                     drawHistogram(df, 'dailydep', 'FRA daily departures', 'daily')[0]
                     ]),
                 dbc.Col([
@@ -655,27 +547,7 @@ app.layout = html.Div(children=[
             dbc.Row([
                 dbc.Col([
                     drawTable(df2, 'table1')])
-                ]),
-            # dbc.Row([
-            #     dbc.Col([
-            #         html.Img(src = './assets/IMG_0115.JPEG') 
-            #     ], width=3),
-            #     dbc.Col([
-            #         html.Img(src = './assets/IMG_0115.JPEG')
-            #     ], width=3),
-            #     dbc.Col([
-            #         html.Img(src = './assets/IMG_0115.JPEG')
-            #     ], width=6),
-            # ], align='center'), 
-            # html.Br(),
-            # dbc.Row([
-            #     dbc.Col([
-            #         html.Img(src = './assets/IMG_0115.JPEG')
-            #     ], width=9),
-            #     dbc.Col([
-            #         html.Img(src = './assets/IMG_0115.JPEG')
-            #     ], width=3),
-            # ], align='center'),      
+                ]),     
         ])
     )
 ])
@@ -710,33 +582,6 @@ def update_table(flightnr, dest, time_, lf, type_):
         filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         data = filtered_df_table.to_dict('records')
         return data
-    
-#TODO: Ensure that the other charts, as well as the map, now also updates based on the filters
-#TODO: Remove date-time object still
-    
-# # Update (pie) chart
-# @app.callback(
-#     Output('donut_chart1', 'figure'),
-#     Input('flightnr_filter', 'value'),
-#     # Input('origin_filter', 'value'),
-#     Input('dest_filter', 'value')
-#     )
-# def update_pie_chart(flightnr, dest):
-#     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest]):
-#         fig = drawDonutChart(df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
-#         return fig
-#     else:
-#         # filtered_df = df2[df2.flightnr.isin(flightnr)
-#         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-#         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-#         print(f'{flightnr}, {dest}')
-#         # origin = list(df2['origin']) # Dit lijkt te werken, maar dan moet dit ff eleganter? ff in-line if statement ofzo
-#         # dest = list(df2['dest'])
-#         filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
-#         fig = drawDonutChart(filtered_df, 'donut_chart1', 'Cargo volume [tonnes]')[1]
-#         return fig
-
-# #TODO: Fix the pie_chart updating
 
 # Update map
 @app.callback(
@@ -754,7 +599,6 @@ def update_flight_route(flightnr, dest, time_, lf):
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        # filtered_df = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         filtered_df_map = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         updated_flight_routes = getFlightRoutes(filtered_df_map)
         return (getmap('map', updated_flight_routes)[1])
@@ -794,31 +638,6 @@ def update_line_chart(flightnr, dest, time_, lf):
         fig_daily = drawHistogram(filtered_df_line, 'dailydep', 'FRA daily departures', 'daily')[1]
         fig_hourly = drawHistogram(filtered_df_line, 'hourlydep', 'FRA hourly departures', 'hourly')[1]
         return(fig_daily, fig_hourly)
-
-
-# Update bar chart
-# @app.callback(
-#     Output('TotalVolume', 'figure'),
-#     Output('TotalLF', 'figure'),
-#     Input('flightnr_filter', 'value'),
-#     Input('dest_filter', 'value'),
-#     Input('slider-dep', 'value'),
-#     Input('slider-lf', 'value')
-#           )
-# def update_bar_chart(flightnr, dest, time_, lf):
-#     if all(arg is None or len(arg) == 0 for arg in [flightnr, dest, time_, lf]):
-#         fig = drawLineChart(df, 'dailydep', 'FRA daily departures', 'daily')[1]
-#         return fig
-#     else:
-#         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-#         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-         
-#         filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
-#         print(f'{flightnr}, {dest}, {time_}, {lf}')
-        
-#         fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume')[1]
-#         fig_lf= drawBarChart(filtered_df_bar, 'TotalLF', 'lf', 'Load factor')[1]
-#         return(fig_volume, fig_lf)
     
 # Update bar chart
 @app.callback(
@@ -849,23 +668,12 @@ def update_bar_chart(flightnr, dest, IATA, time_, lf):
         
         time_flightnr = df[df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time())].flightnr.unique()
         dest_flightnr = df[df.dest.isin(dest)].flightnr.unique()
-        # IATA_flightnr = df[df.specials.isin(IATA)].flightnr.unique()
         
         result_df2 = result_df[result_df['Flight number'].isin(flightnr) & result_df['Flight number'].isin(time_flightnr) & result_df['Flight number'].isin(dest_flightnr)]
         
         
-        #TODO: Fix this still so it filters the right load factors still for each leg, that it filters for a value in a single row, but two columns
-        
         filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
         
-        # Waarschijnlijk gaat hier iets fout met het filteren door de lijst ofzo
-        # The problem arises when load factors are calculated by taking sequential flight and then taking the respective load factor, 
-        # however when the filter is applied, it filters on the cumulative load factor, but due to the filtered dataFrame, it has no
-        # sequential flights to show and hence it shows only the (correct) load factor for that single leg.
-        
-        # filtered_df_bar2 = filtered_df_bar[((filtered_df_bar.flightnr.isin(result_df['Flight number'])) & (filtered_df_bar.leg.isin(result_df['legs'])) & (filtered_df_bar.date.isin(result_df['Date'])) )]
-       
-        # filtered_df_bar3 = filtered_df_bar[(filtered_df_bar.date.isin(result_df['Date'])) & (filtered_df_bar.flightnr.isin(result_df['Flight number']))]
         fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
         fig_lf = drawBarChart(result_df2, 'TotalLF', 'lf', 'Cargo load factor')[1]
         return(fig_volume, fig_lf)
@@ -886,58 +694,6 @@ def update_filters(value1):
     slider1, slider2 = [0,23], [0,1]
     radioItem = 'Shipments'
     return(flightfilter, destinations, slider1, slider2, radioItem)
-    
-#TODO: Fix this updating
-
-
-
-# Update dropdown menus
-# @app.callback(
-#     Output('flightnr_filter', 'options'),
-#     Output('origin_filter', 'options'),
-#     Output('dest_filter', 'options'),
-#     Input('flightnr_filter', 'value'),
-#     Input('origin_filter', 'value'),
-#     Input('dest_filter', 'value')
-    
-#     )
-# def update_dropdown(flightnr, origin, dest):
-#     if all(arg is None or len(arg) == 0 for arg in [flightnr, origin, dest]):
-#         return (list(df.flightnr.unique()), list(df.origin.unique()), list(df.dest.unique()))
-#     else:
-#         # Ensure that when one or more options is != None, it doesn't crash
-#         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
-#         origin = list(df2['origin'].unique()) if origin in [None, []] else origin
-#         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
-#         filtered_df = df2[(df2.flightnr.isin(flightnr) & df2.origin.isin(origin) & df2.dest.isin(dest))]   # (df2['Age']<40) & df2['JOB'].str.startswith('P')]
-#         return (list(filtered_df.flightnr.unique()), list(filtered_df.origin.unique()), list(filtered_df.dest.unique()))
-    #TODO: Fix that when selecting only a single flight number, the other flight numbers remain visible
-    # Hence, only update flight number drop down when a destination is selected
-    # Maybe do a separte filtering per output and then don't filter for that specific dropdown's value?
-
-
-#TODO: Fix isssue that causes me to use df and df2, will be cumbersome in the future
-#TODO: Maybe combine the multiple call-backs? On the other hand, this gives more overview, but does have a lot of repeated code
-#TODO: Add an option that toggles between the full dataframe (with individual shipments), and a dataframe that shows the totals per flight (number)
-#TODO: Add options to include lay-overs as well?
-#TODO: Add plot for: departure tiem (bar chart), frequency per day (line chart), load factor (line chart?)
-#TODO: use the new index to plot frequency and load factor as bar chart
-#TODO: Add a README where the package versions of all the used packages are described, as well as a quick overview of the code.
-#TODO: Update the payload for it to be consistent with payload-range diagram.
-# also don't forget to then split the data into separate legs, to get accurate load factor.
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 if __name__ == '__main__':
