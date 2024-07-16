@@ -310,11 +310,11 @@ def drawLineChart(data_, id_, title_, type_):
             dbc.CardBody([dcc.Graph(id = id_,
                       figure = fig)
                 ])
-            
             )
         ]), fig
         )
 
+# Draw a histogram
 def drawHistogram(data_, id_, title_, type_):
     
     depdata = data_.drop_duplicates('uniqueflightid')['datetimeobject']
@@ -365,12 +365,12 @@ def drawHistogram(data_, id_, title_, type_):
        template = 'plotly_dark'
     )
     
+    # Once again, two elements are being returned here - as has been discussed above.
     return(html.Div([
         dbc.Card(
             dbc.CardBody([dcc.Graph(id = id_,
                       figure = fig)
                 ])
-            
             )
         ]), fig
         )
@@ -579,7 +579,7 @@ def update_table(flightnr, dest, time_, lf, type_):
         flightnr = list(df_table['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df_table['dest'].unique()) if dest in [None, []] else dest
         # Filter flight number, destination, departure time, load factor
-        filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
+        filtered_df_table = df_table[(df_table.flightnr.isin(flightnr) & df_table.dest.isin(dest) & df_table['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df_table.flightnr.isin(getLFFlights2(df_table, lf[0], lf[1])))].drop(columns=['datetimeobject'])
         data = filtered_df_table.to_dict('records')
         return data
 
@@ -599,7 +599,7 @@ def update_flight_route(flightnr, dest, time_, lf):
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        filtered_df_map = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        filtered_df_map = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights2(df2, lf[0], lf[1])))]
         updated_flight_routes = getFlightRoutes(filtered_df_map)
         return (getmap('map', updated_flight_routes)[1])
 
@@ -633,7 +633,7 @@ def update_line_chart(flightnr, dest, time_, lf):
         flightnr = list(df2['flightnr'].unique()) if flightnr in [None, []] else flightnr
         dest = list(df2['dest'].unique()) if dest in [None, []] else dest
          
-        filtered_df_line = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        filtered_df_line = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights2(df2, lf[0], lf[1])))]
         
         fig_daily = drawHistogram(filtered_df_line, 'dailydep', 'FRA daily departures', 'daily')[1]
         fig_hourly = drawHistogram(filtered_df_line, 'hourlydep', 'FRA hourly departures', 'hourly')[1]
@@ -672,7 +672,7 @@ def update_bar_chart(flightnr, dest, IATA, time_, lf):
         result_df2 = result_df[result_df['Flight number'].isin(flightnr) & result_df['Flight number'].isin(time_flightnr) & result_df['Flight number'].isin(dest_flightnr)]
         
         
-        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights(df2, lf[0], lf[1])))]
+        filtered_df_bar = df[(df.flightnr.isin(flightnr) & df.dest.isin(dest) & df['datetimeobject'].dt.time.between(pd.Timestamp(getHHMM(time_[0])).time(), pd.Timestamp(getHHMM(time_[1])).time()) & df.flightnr.isin(getLFFlights2(df2, lf[0], lf[1])))]
         
         fig_volume = drawBarChart(filtered_df_bar, 'TotalVolume', 'volume', 'Transported volume [tonnes]')[1]
         fig_lf = drawBarChart(result_df2, 'TotalLF', 'lf', 'Cargo load factor')[1]
