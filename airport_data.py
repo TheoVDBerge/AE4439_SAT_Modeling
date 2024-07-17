@@ -1,5 +1,5 @@
 import pandas as pd
-
+# Create a DataFrame from all IATA codes with relevant information, such as IATA code, name, and lat/lon data.
 url = 'https://raw.githubusercontent.com/mborsetti/airportsdata/main/airportsdata/airports.csv'
 df = pd.read_csv(url, index_col=0)
 
@@ -12,7 +12,6 @@ airports = ['FRA', 'ORD', 'LAX', 'JFK', 'BKK', 'SIN', 'ASB', 'HKG', 'BOM', 'DAC'
        'PEK', 'ICN', 'PVG', 'CKG', 'ALA', 'CAN', 'DMM', 'SHJ', 'RUH']
 
 airport_data = {}
-
 
 df_airport = df[df['iata'].isin(airports)]
 

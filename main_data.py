@@ -89,7 +89,12 @@ def processData(data):
 shipments = {}
 
 # Generate a list of all the raw YAML files
+
+# To be un-commented for local Python
 datafiles = os.listdir('./base')
+
+# To be un-commented for PythonAnywhere
+# datafiles = os.listdir('/home/TheoVDBerge/mysite/base/')
 
 for idx, i in enumerate(datafiles):
     with open(f'./base/{i}', 'r') as f:
